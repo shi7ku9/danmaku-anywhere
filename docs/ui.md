@@ -19,9 +19,12 @@ From top to bottom:
 Opened with `windows.create({ type: 'popup' })` at
 `import.html?urlKey=…&tabId=…&title=…`.
 
-1. File input accepting `.xml` and `.json`.
-2. On selection: read, detect format, parse.
-3. If the URL key already has an entry, ask to confirm replacement.
+1. File input accepting `.xml` and `.json`, or drag a file anywhere into the
+   window. Drag and drop bypasses the native file chooser, which is broken in
+   some Linux setups. Of several dropped files only the first is imported.
+2. On selection or drop: read, detect format, parse.
+3. If the URL key already has an entry, ask to confirm replacement; declining
+   shows "Import cancelled."
 4. Save the entry (offset 0) and update `index`.
 5. Show "imported N, skipped M", send `reload` for the tab, and close after a
    short delay.

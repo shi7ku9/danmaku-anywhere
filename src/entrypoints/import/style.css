@@ -17,3 +17,21 @@ h1 {
 .error {
   color: #d33;
 }
+body {
+  min-height: calc(100vh - 32px);
+  box-sizing: border-box;
+}
+.hint {
+  color: GrayText;
+}
+body.dragging {
+  outline: 2px dashed currentColor;
+  outline-offset: -8px;
+}
+body.dragging::after {
+  content: 'Drop file to import';
+  display: block;
+  text-align: center;
+  font-weight: 600;
+  margin-top: 12px;
+}
