@@ -160,6 +160,15 @@ describe('Controller', () => {
     expect(controller.status()).toMatchObject({ enabled: false, entry: null });
   });
 
+  it('follows offset changes from another tab without reloading', async () => {
+    controller.toggle();
+    controller.tick();
+    await controller.onStorageChanged({ [`offset:${PAGE}`]: { oldValue: 0, newValue: 5 } });
+    expect(controller.status()).toMatchObject({ enabled: true, entry: { offset: 5, count: 2 } });
+    await controller.onStorageChanged({ 'offset:https://b.com/': { newValue: 9 } });
+    expect(controller.status().entry?.offset).toBe(5);
+  });
+
   it('ignores index changes that leave its own row unchanged', async () => {
     controller.toggle();
     controller.tick();
