@@ -11,8 +11,10 @@ const comments: Comment[] = [
 ];
 
 let url: string;
-type RequestFrame = (cb: () => void) => void;
+type RequestFrame = (cb: () => void) => number;
 let requestFrame: ReturnType<typeof vi.fn<RequestFrame>>;
+let cancelFrame: ReturnType<typeof vi.fn<(id: number) => void>>;
+let frameId = 0;
 let controller: Controller;
 
 const drawn = () => document.querySelector('danmaku-overlay')?.shadowRoot?.querySelectorAll('.c').length ?? 0;
@@ -21,17 +23,22 @@ beforeEach(async () => {
   fakeBrowser.reset();
   await saveEntry({ urlKey: PAGE, title: 'A', fileName: 'a.json' }, comments);
   url = `${PAGE}#top`;
-  requestFrame = vi.fn<RequestFrame>();
+  requestFrame = vi.fn<RequestFrame>(() => ++frameId);
+  cancelFrame = vi.fn<(id: number) => void>();
   controller = new Controller({
     getUrl: () => url,
     getTitle: () => 'Title',
     requestFrame,
+    cancelFrame,
     measure: () => 100,
   });
   await controller.start();
 });
 
-afterEach(() => controller.setEnabled(false));
+afterEach(() => {
+  controller.setEnabled(false);
+  vi.useRealTimers();
+});
 
 describe('Controller', () => {
   it('loads the entry for the page but stays off', () => {
@@ -126,5 +133,46 @@ describe('Controller', () => {
   it('answers setEnabled and getStatus', async () => {
     expect(await controller.handleMessage({ type: 'setEnabled', enabled: true })).toMatchObject({ enabled: true });
     expect(await controller.handleMessage({ type: 'getStatus' })).toMatchObject({ enabled: true });
+  });
+
+  it('cancels the pending frame when turned off', () => {
+    controller.toggle();
+    const id = requestFrame.mock.results.at(-1)?.value;
+    controller.toggle();
+    expect(cancelFrame).toHaveBeenCalledWith(id);
+  });
+
+  it('reloads when its entry is deleted elsewhere', async () => {
+    controller.toggle();
+    await controller.onStorageChanged({ [`danmaku:${PAGE}`]: { oldValue: {} } });
+    expect(controller.status()).toMatchObject({ enabled: true, entry: { count: 2 } });
+    await fakeBrowser.storage.local.clear();
+    await controller.onStorageChanged({ [`danmaku:${PAGE}`]: { oldValue: {} } });
+    expect(controller.status()).toMatchObject({ enabled: false, entry: null });
+  });
+
+  it('ignores storage changes for other pages and its own offset writes', async () => {
+    controller.toggle();
+    controller.tick();
+    await controller.onStorageChanged({ 'danmaku:https://b.com/': { oldValue: {} } });
+    await controller.onStorageChanged({ [`danmaku:${PAGE}`]: { oldValue: {}, newValue: {} } });
+    expect(drawn()).toBe(1);
+  });
+
+  it('keeps loop playback time when appearance settings change', async () => {
+    // A comment at 30 s makes the loop 38 s long, so 20 s does not wrap.
+    await saveEntry({ urlKey: PAGE, title: 'A', fileName: 'a.json' }, [
+      ...comments,
+      { time: 30, text: 'late', mode: 'scroll', color: '#ffffff' },
+    ]);
+    await controller.reload();
+    vi.useFakeTimers();
+    controller.toggle();
+    controller.tick();
+    vi.advanceTimersByTime(20_000);
+    controller.tick();
+    controller.applySettings({ opacity: 0.5, fontScale: 1, speed: 8 });
+    controller.tick();
+    expect(drawn()).toBe(0); // t ≈ 20 s: both comments (0 s, 1 s) have crossed.
   });
 });

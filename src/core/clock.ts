@@ -21,7 +21,7 @@ export class VideoClock implements Clock {
 
 /** Counts from 0 at creation and wraps after `period` seconds (0 = never). */
 export class LoopClock implements Clock {
-  private readonly period: number;
+  private period: number;
   private readonly perfNow: () => number;
   private readonly startedAt: number;
 
@@ -29,6 +29,11 @@ export class LoopClock implements Clock {
     this.period = period;
     this.perfNow = perfNow;
     this.startedAt = perfNow();
+  }
+
+  /** Changes the loop length without restarting playback. */
+  setPeriod(period: number): void {
+    this.period = period;
   }
 
   now(): number {

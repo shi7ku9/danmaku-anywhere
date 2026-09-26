@@ -11,7 +11,11 @@ export default defineContentScript({
     const controller = new Controller({
       getUrl: () => location.href,
       getTitle: () => document.title,
-      requestFrame: (cb) => void ctx.requestAnimationFrame(cb),
+      // Native rAF: WXT's ctx wrapper adds an invalidation listener per call, which
+      // leaks one listener per frame. Invalidation turns danmaku off, which cancels
+      // the pending frame instead.
+      requestFrame: (cb) => requestAnimationFrame(cb),
+      cancelFrame: (id) => cancelAnimationFrame(id),
     });
     void controller.start();
 
@@ -27,6 +31,12 @@ export default defineContentScript({
       unwatch();
       controller.setEnabled(false);
     });
+
+    const onStorageChanged = (changes: Record<string, { oldValue?: unknown; newValue?: unknown }>, area: string) => {
+      if (area === 'local') void controller.onStorageChanged(changes);
+    };
+    browser.storage.onChanged.addListener(onStorageChanged);
+    ctx.onInvalidated(() => browser.storage.onChanged.removeListener(onStorageChanged));
 
     browser.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
       void controller.handleMessage(message).then(sendResponse);

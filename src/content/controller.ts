@@ -10,7 +10,8 @@ import { chooseTarget } from './video-finder';
 export interface ControllerDeps {
   getUrl(): string;
   getTitle(): string;
-  requestFrame(cb: () => void): void;
+  requestFrame(cb: () => void): number;
+  cancelFrame(id: number): void;
   measure?: (el: HTMLElement) => number;
 }
 
@@ -26,6 +27,7 @@ export class Controller {
   private settings: Settings = DEFAULT_SETTINGS;
   private target: HTMLVideoElement | null = null;
   private clock: Clock | null = null;
+  private frameId: number | null = null;
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -40,8 +42,17 @@ export class Controller {
   applySettings(settings: Settings): void {
     this.settings = settings;
     this.renderer.setSettings(settings);
-    // The loop period depends on speed.
-    this.clock = null;
+    // Keep playback time; only the loop length depends on settings (speed).
+    if (this.clock instanceof LoopClock && this.entry) {
+      this.clock.setPeriod(loopPeriod(this.entry.comments, settings.speed));
+    }
+  }
+
+  /** Reacts to `browser.storage.local` changes made by other pages (e.g. a library delete). */
+  async onStorageChanged(changes: Record<string, { oldValue?: unknown; newValue?: unknown }>): Promise<void> {
+    const change = changes[`danmaku:${this.key}`];
+    // Only creation or removal matters; offset writes by this tab replace an existing value.
+    if (change && (change.oldValue === undefined || change.newValue === undefined)) await this.reload();
   }
 
   /** Turns danmaku off and loads the new entry when the page's URL key changes. */
@@ -82,8 +93,10 @@ export class Controller {
     this.target = null;
     this.clock = null;
     if (next) {
-      this.deps.requestFrame(() => this.tick());
+      this.scheduleFrame();
     } else {
+      if (this.frameId !== null) this.deps.cancelFrame(this.frameId);
+      this.frameId = null;
       this.renderer.clear();
       this.overlay.remove();
     }
@@ -134,6 +147,7 @@ export class Controller {
 
   /** Draws one frame and schedules the next while enabled. */
   tick(): void {
+    this.frameId = null;
     if (!this.enabled || !this.entry) return;
     const target = chooseTarget(this.target, document.querySelectorAll('video'));
     if (target !== this.target || !this.clock) {
@@ -144,6 +158,13 @@ export class Controller {
     }
     const { width, height } = this.overlay.layout();
     this.renderer.frame(this.clock.now() + this.entry.offset, width, height);
-    this.deps.requestFrame(() => this.tick());
+    this.scheduleFrame();
+  }
+
+  private scheduleFrame(): void {
+    this.frameId = this.deps.requestFrame(() => {
+      this.frameId = null;
+      this.tick();
+    });
   }
 }
