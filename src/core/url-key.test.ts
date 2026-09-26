@@ -12,6 +12,17 @@ describe('urlKey', () => {
     );
   });
 
+  it('keeps only v on YouTube watch pages', () => {
+    expect(urlKey('https://www.youtube.com/watch?v=abc&list=PL1&index=3&pp=x')).toBe(
+      'https://www.youtube.com/watch?v=abc',
+    );
+    expect(urlKey('https://m.youtube.com/watch?list=PL1&v=abc')).toBe('https://m.youtube.com/watch?v=abc');
+  });
+
+  it('keeps list and index on other sites', () => {
+    expect(urlKey('https://a.com/p?list=1&index=2')).toBe('https://a.com/p?index=2&list=1');
+  });
+
   it('drops fbclid, gclid and start', () => {
     expect(urlKey('https://a.com/p?fbclid=1&gclid=2&start=30&id=7')).toBe('https://a.com/p?id=7');
   });
