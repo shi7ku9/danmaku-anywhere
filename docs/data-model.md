@@ -54,6 +54,8 @@ Meant to be hand-written, so it is lenient:
 
 - `time` (number, ≥ 0) and `text` (non-empty string) are required.
 - `mode` defaults to `scroll`; `color` defaults to `#ffffff`.
+- An item whose `mode` is not one of the three values, or whose `color` is not
+  `#rrggbb`, fails validation.
 - Items that fail validation are skipped and counted; the import reports
   "imported N, skipped M". A file where every item is invalid is an error.
 
@@ -62,8 +64,8 @@ Meant to be hand-written, so it is lenient:
 Danmaku is bound to a normalized URL:
 
 - Drop the `#hash`.
-- Drop tracking parameters (`utm_*`, `fbclid`, `gclid`, …) and timestamp
-  parameters (`t`, `start`).
+- Drop tracking parameters (`utm_*`, `fbclid`, `gclid`, `dclid`, `msclkid`,
+  `igshid`, `si`) and timestamp parameters (`t`, `start`).
 - Sort the remaining query parameters.
 - Keep scheme, host and path as-is.
 
