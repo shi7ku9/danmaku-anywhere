@@ -85,6 +85,17 @@ describe('Controller', () => {
     });
   });
 
+  it('does not play or edit the old entry while the new URL loads', async () => {
+    controller.toggle();
+    url = 'https://b.com/';
+    const pending = controller.checkUrl();
+    controller.toggle();
+    await controller.setOffset(5);
+    expect(controller.status()).toMatchObject({ enabled: false, entry: null });
+    await pending;
+    expect((await getEntry(PAGE))?.offset).toBe(0);
+  });
+
   it('ignores URL changes that normalize to the same key', async () => {
     controller.toggle();
     url = `${PAGE}?utm_source=x`;
