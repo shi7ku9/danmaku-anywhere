@@ -54,6 +54,10 @@ export class Controller {
    * comments are in place once its row changes, and offset writes never touch it.
    */
   async onStorageChanged(changes: Record<string, { oldValue?: unknown; newValue?: unknown }>): Promise<void> {
+    // Offset set from another tab: apply in place, keeping playback and comments.
+    const offset = changes[`offset:${this.key}`]?.newValue;
+    if (this.entry && typeof offset === 'number') this.entry.offset = offset;
+
     const change = changes['index'];
     if (!change) return;
     const row = (index: unknown) =>
