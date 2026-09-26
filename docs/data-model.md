@@ -83,13 +83,16 @@ fill with Bilibili files.
 | Key | Value |
 |---|---|
 | `index` | `{ urlKey, title, fileName, count, importedAt }[]`: a summary list for the popup, so it never loads full comment arrays |
-| `danmaku:<urlKey>` | `{ offset: number, comments: Comment[] }` |
+| `danmaku:<urlKey>` | `{ comments: Comment[] }` |
+| `offset:<urlKey>` | `number`: sync offset in seconds (absent = 0) |
 | `settings` | `{ opacity, fontScale, speed }` |
 
 - One danmaku file per URL key. Importing onto a URL that already has one asks for
   confirmation before replacing it.
-- `offset` (seconds, may be negative) is stored per entry, because a sync offset
-  describes one file against one video.
+- The offset (seconds, may be negative) is stored per entry, because a sync offset
+  describes one file against one video. It lives in its own key so changing it is
+  a single small write that never rewrites or races the comments; every tab on
+  that URL picks it up through `storage.onChanged`. Importing resets it to 0.
 - `title` is the page's `document.title` at import time, for display in the library.
 - The **enabled state is not stored**. It lives in the content script's memory, so
   every page load starts with danmaku off.
