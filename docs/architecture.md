@@ -3,11 +3,15 @@
 ## Stack
 
 - **WXT**: builds one codebase into a Chrome MV3 and a Firefox extension, with
-  TypeScript, hot reload and a typed `storage` wrapper.
+  TypeScript, hot reload and a typed `storage` wrapper. Auto-imports are off;
+  everything is imported explicitly.
 - **Rendering**: plain DOM elements moved with CSS transforms, inside a Shadow DOM
   (see [rendering.md](rendering.md)). No danmaku library; the available ones are
   unmaintained and would still need wrapping for our two sync modes.
-- **Tests**: Vitest.
+- **Tests**: Vitest with happy-dom and WXT's fake browser.
+- **Permissions**: `storage`, `unlimitedStorage`, and `activeTab`. With `activeTab`
+  the popup can read the tab URL and tell restricted pages apart from tabs that
+  need a reload.
 
 ## Runtime contexts
 
@@ -22,23 +26,24 @@
        ▼                           │            │
 ┌─────────────┐          ┌──────────────────┐   │
 │ Import      │          │  Background      │   │
-│ window      │ ─────────┼──────────────────┼───┘
-└─────────────┘          │  (shortcut)      │
-       │                 └──────────────────┘
+│ window      │ ──┐      │  (shortcut)      │   │
+└─────────────┘   │      └──────────────────┘   │
+       │          └─────────────────────────────┘
        ▼
   browser.storage.local
 ```
 
-- **Content script**: injected into every page. Owns the overlay and the enabled
-  state for its tab.
+- **Content script**: injected into every top-level page. Owns the overlay and
+  the enabled state for its tab.
 - **Popup**: queries the active tab's content script for status, sends toggle and
   offset changes, edits global settings, manages the stored library.
 - **Import window** (`import.html`): a small extension page opened with
   `windows.create`. It exists because file pickers cannot be opened reliably from
   either the popup (Firefox closes the popup when the picker opens) or the content
-  script (the page lacks the user activation required by `input.click()`).
+  script (the page lacks the user activation required by `input.click()`). After
+  saving, it sends `reload` straight to the target tab.
 - **Background**: listens for the keyboard shortcut and forwards it to the active
-  tab. Relays "reload" from the import window to the target tab.
+  tab.
 
 ## Modules
 
@@ -46,38 +51,44 @@ Each module has a single job and can be tested on its own.
 
 | Module | Responsibility | Depends on |
 |---|---|---|
-| `parser/` | Detect format; parse Bilibili XML or JSON into `Comment[]` | nothing (pure) |
-| `url-key` | Normalize a URL into a storage key | nothing (pure) |
-| `store` | Read/write danmaku entries, index and settings | WXT storage |
-| `clock` | `VideoClock` and `LoopClock`, both exposing `now(): number` | DOM |
-| `video-finder` | Pick the target `<video>` and detect when it changes | DOM |
-| `renderer` | Lane allocation and DOM updates for a given time | DOM |
-| `overlay` | Position the overlay over the video or viewport; fullscreen handling | DOM |
-| `controller` | Content script entry: wires everything together, handles messages | all |
+| `core/parse*` | Detect format; parse Bilibili XML or JSON into `Comment[]` | nothing (pure) |
+| `core/url-key` | Normalize a URL into a storage key | nothing (pure) |
+| `core/timeline` | Binary search over comments sorted by time | nothing (pure) |
+| `core/lanes` | Lane allocation and scroll positions | nothing (pure) |
+| `core/clock` | `VideoClock` and `LoopClock`, both exposing `now(): number` | video element |
+| `storage/store` | Read/write danmaku entries, index and settings | WXT storage |
+| `content/video-finder` | Pick the target `<video>` | DOM |
+| `content/renderer` | DOM comment elements for a given time | DOM, `core` |
+| `content/overlay` | Position the overlay over the video or viewport; fullscreen handling | DOM |
+| `content/controller` | Wires everything together, runs the frame loop, handles messages | all |
 
-The renderer never knows where time comes from; it only calls `clock.now()`.
-The difference between video mode and loop mode lives entirely in the clock.
-Lane allocation and visible-window lookup are pure functions inside `renderer`
-so they can be tested without a DOM.
+The renderer never knows where time comes from; the controller passes it
+`clock.now() + offset`. The difference between video mode and loop mode lives
+entirely in the clock.
 
 ## Target video selection
 
-`video-finder` picks the `<video>` that is playing and has the largest on-screen
-area. If none is playing, the page is treated as having no video (loop mode).
-The choice is re-evaluated when videos start playing or are added/removed.
+`video-finder` keeps the current target while it is still in the document and
+has a non-zero size, even when paused, so pausing freezes danmaku instead of
+switching to loop mode. Otherwise it picks the largest playing video, or none
+(loop mode). The controller re-evaluates this every frame while danmaku is on,
+so a video that starts playing takes over from loop mode.
 
 ## Messages
 
-| From → To | Message | Payload / reply |
+| From → To | Message | Payload |
 |---|---|---|
-| popup → content | `getStatus` | → `{ urlKey, entry?: { fileName, count, offset }, enabled, mode }` |
+| popup → content | `getStatus` | — |
 | popup → content | `setEnabled` | `{ enabled }` |
 | popup → content | `setOffset` | `{ offset }` (content persists it) |
 | background → content | `toggle` | — |
-| import → background → content | `reload` | `{ urlKey }` |
+| import / popup → content | `reload` | — |
+
+Every message is answered with a `Status`:
+`{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode }`.
 
 Global settings changes are not messaged; the content script watches the
 `settings` storage key and applies changes live.
 
-A failed `getStatus` (no receiver) means the page is restricted or was open
-before the extension was installed; see [ui.md](ui.md#error-handling).
+A failed message (no receiver) means the page is restricted or was open before
+the extension was installed; see [ui.md](ui.md#error-handling).

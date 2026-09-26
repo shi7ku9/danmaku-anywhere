@@ -20,10 +20,12 @@ clock and clears the screen.
 Runs on `requestAnimationFrame` only while danmaku is enabled.
 
 1. Read `t`. If it moved backwards or jumped forward by more than 1 s since the
-   last frame (a seek or loop wrap), clear all active comments.
-2. Binary-search the sorted comments for those that should be visible:
-   `time ∈ [t − duration, t]`, where `duration` is `speed` for scrolling comments
-   and 4 s for top/bottom comments.
+   last frame (a seek or loop wrap), clear all active comments and rewind the
+   cursor with a binary search to the first comment at `t − max(speed, 4)`.
+2. A cursor over the sorted comments spawns each comment once its time arrives,
+   provided it is still inside its visible window `time ∈ [t − duration, t]`,
+   where `duration` is `speed` for scrolling comments and 4 s for top/bottom
+   comments.
 3. Allocate a lane to each newly visible comment (below). If no lane fits, the
    comment is dropped and not retried.
 4. Update each scrolling comment's position:
@@ -60,11 +62,11 @@ Lane allocation is a pure function of lane state, comment and time, and is unit-
 ## Overlay positioning
 
 - **Video mode**: `position: fixed`, matched to the video's
-  `getBoundingClientRect()`. Updated via `ResizeObserver` on the video and on
-  `scroll`/`resize` events.
+  `getBoundingClientRect()`. Repositioned every frame; polling while danmaku is on
+  covers scrolling, resizing and layout changes without observers.
 - **Loop mode**: covers the viewport.
-- **Fullscreen**: on `fullscreenchange`, move the overlay host into
-  `document.fullscreenElement`; move it back to `document.documentElement` on exit.
+- **Fullscreen**: each frame, if `document.fullscreenElement` changed, move the
+  overlay host into it; move it back to `document.documentElement` on exit.
   If the fullscreen element is the `<video>` itself, nothing can be drawn over it.
   This is a platform limitation and is accepted.
 - `z-index` is the maximum value.
@@ -72,11 +74,11 @@ Lane allocation is a pure function of lane state, comment and time, and is unit-
 ## Page and video changes
 
 Single-page sites (e.g. YouTube) change the URL without reloading. The controller
-checks the URL key on `popstate`, on WXT's location-change event, and on a 1 s
-interval as a fallback. When the key changes:
+checks the URL key on WXT's location-change event and on a 1 s interval as a
+fallback. When the key changes:
 
 1. Turn danmaku off and clear the overlay.
 2. Load the entry for the new key (if any).
 
-A `MutationObserver` plus `play` events (captured on `document`) tell
-`video-finder` to re-evaluate the target video.
+The target video is re-evaluated every frame (see
+[architecture.md](architecture.md#target-video-selection)).
