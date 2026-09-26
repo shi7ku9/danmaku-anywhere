@@ -17,6 +17,25 @@ describe('LoopClock', () => {
     expect(clock.now()).toBe(2);
   });
 
+  it('keeps the current position when the period changes after a full loop', () => {
+    let ms = 0;
+    const clock = new LoopClock(38, () => ms);
+    ms = 100_000; // 100 s into a 38 s loop: position 24
+    expect(clock.now()).toBe(24);
+    clock.setPeriod(46);
+    expect(clock.now()).toBe(24);
+    ms += 1000;
+    expect(clock.now()).toBe(25);
+  });
+
+  it('wraps into a shorter period that the position already exceeds', () => {
+    let ms = 0;
+    const clock = new LoopClock(38, () => ms);
+    ms = 30_000;
+    clock.setPeriod(20);
+    expect(clock.now()).toBe(10);
+  });
+
   it('never wraps with a zero period', () => {
     let ms = 0;
     const clock = new LoopClock(0, () => ms);
