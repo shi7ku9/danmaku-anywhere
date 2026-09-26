@@ -48,11 +48,17 @@ export class Controller {
     }
   }
 
-  /** Reacts to `browser.storage.local` changes made by other pages (e.g. a library delete). */
+  /**
+   * Reloads when another page imports, replaces or deletes this URL's entry.
+   * Watches the index rather than the entry: the index is written last, so the
+   * comments are in place once its row changes, and offset writes never touch it.
+   */
   async onStorageChanged(changes: Record<string, { oldValue?: unknown; newValue?: unknown }>): Promise<void> {
-    const change = changes[`danmaku:${this.key}`];
-    // Only creation or removal matters; offset writes by this tab replace an existing value.
-    if (change && (change.oldValue === undefined || change.newValue === undefined)) await this.reload();
+    const change = changes['index'];
+    if (!change) return;
+    const row = (index: unknown) =>
+      JSON.stringify(Array.isArray(index) ? index.find((e: { urlKey?: string }) => e?.urlKey === this.key) : undefined);
+    if (row(change.oldValue) !== row(change.newValue)) await this.reload();
   }
 
   /** Turns danmaku off and loads the new entry when the page's URL key changes. */

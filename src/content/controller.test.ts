@@ -142,19 +142,29 @@ describe('Controller', () => {
     expect(cancelFrame).toHaveBeenCalledWith(id);
   });
 
-  it('reloads when its entry is deleted elsewhere', async () => {
+  it('loads an entry first imported from another tab once its index row exists', async () => {
+    url = 'https://b.com/';
+    await controller.checkUrl();
+    // Comments land first; the storage event for them must not decide the state.
+    await fakeBrowser.storage.local.set({ 'danmaku:https://b.com/': { offset: 0, comments } });
+    expect(controller.status().entry).toBeNull();
+    await saveEntry({ urlKey: 'https://b.com/', title: 'B', fileName: 'b.xml' }, comments);
+    await controller.onStorageChanged({ index: { oldValue: [], newValue: [{ urlKey: 'https://b.com/', fileName: 'b.xml' }] } });
+    expect(controller.status()).toMatchObject({ entry: { fileName: 'b.xml', count: 2 } });
+  });
+
+  it('unloads when its index row is deleted elsewhere', async () => {
     controller.toggle();
-    await controller.onStorageChanged({ [`danmaku:${PAGE}`]: { oldValue: {} } });
-    expect(controller.status()).toMatchObject({ enabled: true, entry: { count: 2 } });
     await fakeBrowser.storage.local.clear();
-    await controller.onStorageChanged({ [`danmaku:${PAGE}`]: { oldValue: {} } });
+    await controller.onStorageChanged({ index: { oldValue: [{ urlKey: PAGE }], newValue: [] } });
     expect(controller.status()).toMatchObject({ enabled: false, entry: null });
   });
 
-  it('ignores storage changes for other pages and its own offset writes', async () => {
+  it('ignores index changes that leave its own row unchanged', async () => {
     controller.toggle();
     controller.tick();
-    await controller.onStorageChanged({ 'danmaku:https://b.com/': { oldValue: {} } });
+    const row = { urlKey: PAGE, fileName: 'a.json' };
+    await controller.onStorageChanged({ index: { oldValue: [row], newValue: [row, { urlKey: 'https://b.com/' }] } });
     await controller.onStorageChanged({ [`danmaku:${PAGE}`]: { oldValue: {}, newValue: {} } });
     expect(drawn()).toBe(1);
   });
