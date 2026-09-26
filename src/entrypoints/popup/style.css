@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+  font-size: 13px;
+}
+body {
+  width: 320px;
+  margin: 12px;
+}
+section {
+  margin-bottom: 12px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.muted {
+  color: GrayText;
+}
+#offset {
+  width: 64px;
+}
+.slider {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 6px;
+}
+#library {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0 0;
+}
+#library li {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  padding: 4px 0;
+  border-top: 1px solid color-mix(in srgb, currentColor 15%, transparent);
+}
+#library .info {
+  flex: 1;
+  min-width: 0;
+}
+#library .info > * {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
