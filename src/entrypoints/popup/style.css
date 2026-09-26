@@ -7,6 +7,10 @@ body {
   width: 320px;
   margin: 12px;
 }
+/* `.row` sets display, which would otherwise override the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
 section {
   margin-bottom: 12px;
 }
