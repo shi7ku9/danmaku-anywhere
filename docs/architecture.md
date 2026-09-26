@@ -88,8 +88,9 @@ Every message is answered with a `Status`:
 `{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode }`.
 
 Global settings changes are not messaged; the content script watches the
-`settings` storage key and applies changes live. It also watches its own
-`danmaku:<urlKey>` key, so deleting the entry from any page unloads it.
+`settings` storage key and applies changes live. It also watches its own row
+in `index` (written after the comments), so importing, replacing or deleting the
+entry from any page reloads it.
 
 Index updates (import, delete) run under a Web Lock (`danmaku-index`), so two
 import windows or a popup saving at once cannot overwrite each other's rows.
