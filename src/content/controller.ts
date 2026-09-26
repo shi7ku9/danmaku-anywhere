@@ -55,6 +55,10 @@ export class Controller {
     if (key === this.key) return;
     this.key = key;
     this.setEnabled(false);
+    // Drop the old entry now so nothing can enable or edit it while the new one loads.
+    this.entry = null;
+    this.fileName = '';
+    this.renderer.setComments([]);
     await this.reload();
   }
 
