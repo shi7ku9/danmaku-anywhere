@@ -1,0 +1,145 @@
+import { LoopClock, VideoClock, loopPeriod, type Clock } from '../core/clock';
+import type { Message, Status } from '../core/messages';
+import { DEFAULT_SETTINGS, type DanmakuEntry, type Settings } from '../core/types';
+import { urlKey } from '../core/url-key';
+import { getEntry, getSettings, listEntries, setOffset } from '../storage/store';
+import { Overlay } from './overlay';
+import { Renderer } from './renderer';
+import { chooseTarget } from './video-finder';
+
+export interface ControllerDeps {
+  getUrl(): string;
+  getTitle(): string;
+  requestFrame(cb: () => void): void;
+  measure?: (el: HTMLElement) => number;
+}
+
+/** Owns one tab's danmaku: which entry is loaded, whether it is on, and the frame loop. */
+export class Controller {
+  private readonly deps: ControllerDeps;
+  private readonly overlay = new Overlay();
+  private readonly renderer: Renderer;
+  private key = '';
+  private entry: DanmakuEntry | null = null;
+  private fileName = '';
+  private enabled = false;
+  private settings: Settings = DEFAULT_SETTINGS;
+  private target: HTMLVideoElement | null = null;
+  private clock: Clock | null = null;
+
+  constructor(deps: ControllerDeps) {
+    this.deps = deps;
+    this.renderer = new Renderer(this.overlay.stage, { measure: deps.measure });
+  }
+
+  async start(): Promise<void> {
+    this.applySettings(await getSettings());
+    await this.checkUrl();
+  }
+
+  applySettings(settings: Settings): void {
+    this.settings = settings;
+    this.renderer.setSettings(settings);
+    // The loop period depends on speed.
+    this.clock = null;
+  }
+
+  /** Turns danmaku off and loads the new entry when the page's URL key changes. */
+  async checkUrl(): Promise<void> {
+    let key: string;
+    try {
+      key = urlKey(this.deps.getUrl());
+    } catch {
+      key = '';
+    }
+    if (key === this.key) return;
+    this.key = key;
+    this.setEnabled(false);
+    await this.reload();
+  }
+
+  /** Re-reads the current key's entry from storage. */
+  async reload(): Promise<void> {
+    const key = this.key;
+    const [entry, index] = await Promise.all([getEntry(key), listEntries()]);
+    if (key !== this.key) return; // The URL changed while loading.
+    const meta = index.find((e) => e.urlKey === key);
+    this.entry = entry && meta ? entry : null;
+    this.fileName = meta?.fileName ?? '';
+    this.renderer.setComments(this.entry?.comments ?? []);
+    this.clock = null;
+    if (!this.entry) this.setEnabled(false);
+  }
+
+  setEnabled(on: boolean): void {
+    const next = on && this.entry !== null;
+    if (next === this.enabled) return;
+    this.enabled = next;
+    this.target = null;
+    this.clock = null;
+    if (next) {
+      this.deps.requestFrame(() => this.tick());
+    } else {
+      this.renderer.clear();
+      this.overlay.remove();
+    }
+  }
+
+  toggle(): void {
+    this.setEnabled(!this.enabled);
+  }
+
+  async setOffset(offset: number): Promise<void> {
+    if (!this.entry) return;
+    this.entry.offset = offset;
+    await setOffset(this.key, offset);
+  }
+
+  status(): Status {
+    const target = this.enabled ? this.target : chooseTarget(null, document.querySelectorAll('video'));
+    return {
+      urlKey: this.key,
+      title: this.deps.getTitle(),
+      entry: this.entry
+        ? { fileName: this.fileName, count: this.entry.comments.length, offset: this.entry.offset }
+        : null,
+      enabled: this.enabled,
+      mode: target ? 'video' : 'loop',
+    };
+  }
+
+  async handleMessage(message: Message): Promise<Status> {
+    switch (message.type) {
+      case 'getStatus':
+        break;
+      case 'setEnabled':
+        this.setEnabled(message.enabled);
+        break;
+      case 'toggle':
+        this.toggle();
+        break;
+      case 'setOffset':
+        await this.setOffset(message.offset);
+        break;
+      case 'reload':
+        await this.reload();
+        break;
+    }
+    return this.status();
+  }
+
+  /** Draws one frame and schedules the next while enabled. */
+  tick(): void {
+    if (!this.enabled || !this.entry) return;
+    const target = chooseTarget(this.target, document.querySelectorAll('video'));
+    if (target !== this.target || !this.clock) {
+      this.target = target;
+      this.clock = target ? new VideoClock(target) : new LoopClock(loopPeriod(this.entry.comments, this.settings.speed));
+      this.overlay.setTarget(target);
+      this.renderer.clear();
+    }
+    const { width, height } = this.overlay.layout();
+    this.renderer.frame(this.clock.now() + this.entry.offset, width, height);
+    this.deps.requestFrame(() => this.tick());
+  }
+}
