@@ -66,6 +66,8 @@ Danmaku is bound to a normalized URL:
 - Drop the `#hash`.
 - Drop tracking parameters (`utm_*`, `fbclid`, `gclid`, `dclid`, `msclkid`,
   `igshid`, `si`) and timestamp parameters (`t`, `start`).
+- On YouTube watch pages (`*.youtube.com/watch`), keep only `v`; playlist
+  parameters (`list`, `index`, `pp`) depend on how the video was opened.
 - Sort the remaining query parameters.
 - Keep scheme, host and path as-is.
 
