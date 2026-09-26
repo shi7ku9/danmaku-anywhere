@@ -5,7 +5,16 @@ export const settingsItem = storage.defineItem<Settings>('local:settings', { fal
 const indexItem = storage.defineItem<IndexEntry[]>('local:index', { fallback: [] });
 
 type EntryKey = `local:danmaku:${string}`;
+type OffsetKey = `local:offset:${string}`;
 const entryKey = (urlKey: string): EntryKey => `local:danmaku:${urlKey}`;
+/** Kept apart from the comments so an offset change is one small write that cannot clobber a new import. */
+const offsetKey = (urlKey: string): OffsetKey => `local:offset:${urlKey}`;
+
+/** Stored under `danmaku:<urlKey>`; older versions also stored the offset here. */
+interface StoredComments {
+  comments: Comment[];
+  offset?: number;
+}
 
 let localIndexQueue: Promise<unknown> = Promise.resolve();
 
@@ -36,8 +45,12 @@ export async function hasEntry(urlKey: string): Promise<boolean> {
   return (await listEntries()).some((e) => e.urlKey === urlKey);
 }
 
-export function getEntry(urlKey: string): Promise<DanmakuEntry | null> {
-  return storage.getItem<DanmakuEntry>(entryKey(urlKey));
+export async function getEntry(urlKey: string): Promise<DanmakuEntry | null> {
+  const [stored, offset] = await Promise.all([
+    storage.getItem<StoredComments>(entryKey(urlKey)),
+    storage.getItem<number>(offsetKey(urlKey)),
+  ]);
+  return stored ? { comments: stored.comments, offset: offset ?? stored.offset ?? 0 } : null;
 }
 
 /** Stores comments for a URL (replacing any existing entry) with a zero offset. */
@@ -45,7 +58,8 @@ export async function saveEntry(
   meta: { urlKey: string; title: string; fileName: string },
   comments: Comment[],
 ): Promise<void> {
-  await storage.setItem<DanmakuEntry>(entryKey(meta.urlKey), { offset: 0, comments });
+  await storage.removeItem(offsetKey(meta.urlKey));
+  await storage.setItem<StoredComments>(entryKey(meta.urlKey), { comments });
   await updateIndex((index) => [
     ...index.filter((e) => e.urlKey !== meta.urlKey),
     { ...meta, count: comments.length, importedAt: Date.now() },
@@ -53,11 +67,10 @@ export async function saveEntry(
 }
 
 export async function setOffset(urlKey: string, offset: number): Promise<void> {
-  const entry = await getEntry(urlKey);
-  if (entry) await storage.setItem<DanmakuEntry>(entryKey(urlKey), { ...entry, offset });
+  if (await hasEntry(urlKey)) await storage.setItem<number>(offsetKey(urlKey), offset);
 }
 
 export async function deleteEntry(urlKey: string): Promise<void> {
-  await storage.removeItem(entryKey(urlKey));
+  await storage.removeItems([entryKey(urlKey), offsetKey(urlKey)]);
   await updateIndex((index) => index.filter((e) => e.urlKey !== urlKey));
 }

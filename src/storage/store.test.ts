@@ -47,6 +47,26 @@ describe('entries', () => {
     expect((await getEntry(meta.urlKey))?.offset).toBe(-2.5);
   });
 
+  it('never writes old comments back when an offset change races a replacing import', async () => {
+    await saveEntry(meta, comments);
+    const fresh: Comment[] = [{ time: 9, text: 'new', mode: 'scroll', color: '#ffffff' }];
+    await Promise.all([setOffset(meta.urlKey, 4), saveEntry({ ...meta, fileName: 'new.xml' }, fresh)]);
+    expect((await getEntry(meta.urlKey))?.comments).toEqual(fresh);
+  });
+
+  it('stores the offset apart from the comments', async () => {
+    await saveEntry(meta, comments);
+    await setOffset(meta.urlKey, 2);
+    expect(await storage.getItem(`local:offset:${meta.urlKey}`)).toBe(2);
+    expect(await storage.getItem(`local:danmaku:${meta.urlKey}`)).toEqual({ comments });
+  });
+
+  it('reads entries saved with the offset inside', async () => {
+    await saveEntry(meta, comments);
+    await storage.setItem(`local:danmaku:${meta.urlKey}`, { offset: 3, comments });
+    expect((await getEntry(meta.urlKey))?.offset).toBe(3);
+  });
+
   it('ignores an offset for a missing entry', async () => {
     await setOffset('https://none.com/', 1);
     expect(await getEntry('https://none.com/')).toBeNull();
@@ -68,8 +88,10 @@ describe('entries', () => {
 
   it('deletes the entry and its index row', async () => {
     await saveEntry(meta, comments);
+    await setOffset(meta.urlKey, 1);
     await deleteEntry(meta.urlKey);
     expect(await getEntry(meta.urlKey)).toBeNull();
+    expect(await storage.getItem(`local:offset:${meta.urlKey}`)).toBeNull();
     expect(await listEntries()).toEqual([]);
     expect(await hasEntry(meta.urlKey)).toBe(false);
   });
