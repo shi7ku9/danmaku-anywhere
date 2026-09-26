@@ -88,7 +88,11 @@ Every message is answered with a `Status`:
 `{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode }`.
 
 Global settings changes are not messaged; the content script watches the
-`settings` storage key and applies changes live.
+`settings` storage key and applies changes live. It also watches its own
+`danmaku:<urlKey>` key, so deleting the entry from any page unloads it.
+
+Index updates (import, delete) run under a Web Lock (`danmaku-index`), so two
+import windows or a popup saving at once cannot overwrite each other's rows.
 
 A failed message (no receiver) means the page is restricted or was open before
 the extension was installed; see [ui.md](ui.md#error-handling).

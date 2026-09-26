@@ -7,6 +7,23 @@ const indexItem = storage.defineItem<IndexEntry[]>('local:index', { fallback: []
 type EntryKey = `local:danmaku:${string}`;
 const entryKey = (urlKey: string): EntryKey => `local:danmaku:${urlKey}`;
 
+let localIndexQueue: Promise<unknown> = Promise.resolve();
+
+/**
+ * Runs an index read-modify-write exclusively. Web Locks serialize the popup and
+ * every import window (they share the extension origin); the local queue covers
+ * environments without them.
+ */
+function updateIndex(update: (index: IndexEntry[]) => IndexEntry[]): Promise<void> {
+  const run = async () => indexItem.setValue(update(await listEntries()));
+  if (typeof navigator !== 'undefined' && navigator.locks) {
+    return navigator.locks.request('danmaku-index', run).then(() => undefined);
+  }
+  const next = localIndexQueue.then(run, run);
+  localIndexQueue = next;
+  return next;
+}
+
 export async function getSettings(): Promise<Settings> {
   return { ...DEFAULT_SETTINGS, ...(await settingsItem.getValue()) };
 }
@@ -29,9 +46,10 @@ export async function saveEntry(
   comments: Comment[],
 ): Promise<void> {
   await storage.setItem<DanmakuEntry>(entryKey(meta.urlKey), { offset: 0, comments });
-  const index = (await listEntries()).filter((e) => e.urlKey !== meta.urlKey);
-  index.push({ ...meta, count: comments.length, importedAt: Date.now() });
-  await indexItem.setValue(index);
+  await updateIndex((index) => [
+    ...index.filter((e) => e.urlKey !== meta.urlKey),
+    { ...meta, count: comments.length, importedAt: Date.now() },
+  ]);
 }
 
 export async function setOffset(urlKey: string, offset: number): Promise<void> {
@@ -41,5 +59,5 @@ export async function setOffset(urlKey: string, offset: number): Promise<void> {
 
 export async function deleteEntry(urlKey: string): Promise<void> {
   await storage.removeItem(entryKey(urlKey));
-  await indexItem.setValue((await listEntries()).filter((e) => e.urlKey !== urlKey));
+  await updateIndex((index) => index.filter((e) => e.urlKey !== urlKey));
 }

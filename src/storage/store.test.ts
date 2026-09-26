@@ -52,6 +52,20 @@ describe('entries', () => {
     expect(await getEntry('https://none.com/')).toBeNull();
   });
 
+  it('keeps every index row when saves run concurrently', async () => {
+    const other = { ...meta, urlKey: 'https://b.com/' };
+    await Promise.all([saveEntry(meta, comments), saveEntry(other, comments)]);
+    expect((await listEntries()).map((e) => e.urlKey).sort()).toEqual(['https://a.com/p?v=1', 'https://b.com/']);
+  });
+
+  it('removes every index row when deletes run concurrently', async () => {
+    const other = { ...meta, urlKey: 'https://b.com/' };
+    await saveEntry(meta, comments);
+    await saveEntry(other, comments);
+    await Promise.all([deleteEntry(meta.urlKey), deleteEntry(other.urlKey)]);
+    expect(await listEntries()).toEqual([]);
+  });
+
   it('deletes the entry and its index row', async () => {
     await saveEntry(meta, comments);
     await deleteEntry(meta.urlKey);
