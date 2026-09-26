@@ -2,6 +2,7 @@ import { browser } from 'wxt/browser';
 import type { Message, Status } from '../../core/messages';
 import type { Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, settingsItem } from '../../storage/store';
+import { createOffsetSender } from './offset';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -15,6 +16,12 @@ const RESTRICTED = [
 let tabId: number | undefined;
 let tabUrl: string | undefined;
 let status: Status | null = null;
+let offset = createOffsetSender(0, sendOffset);
+
+async function sendOffset(value: number): Promise<void> {
+  status = await send({ type: 'setOffset', offset: value });
+  renderStatus();
+}
 
 async function send(message: Message): Promise<Status | null> {
   if (tabId === undefined) return null;
@@ -51,17 +58,8 @@ function renderStatus(): void {
   importButton.disabled = false;
   $('mode').textContent = status.enabled ? `(${status.mode === 'video' ? 'video sync' : 'loop'})` : '';
   $('offset-row').hidden = !entry;
-  if (entry) $<HTMLInputElement>('offset').value = String(entry.offset);
-}
-
-async function sendOffset(offset: number): Promise<void> {
-  if (!Number.isFinite(offset)) return;
-  status = await send({ type: 'setOffset', offset: Math.round(offset * 10) / 10 });
-  renderStatus();
-}
-
-function currentOffset(): number {
-  return status?.entry?.offset ?? 0;
+  // The local value leads while offset changes are still in flight.
+  if (entry) $<HTMLInputElement>('offset').value = String(offset.value);
 }
 
 const SLIDERS = {
@@ -127,6 +125,7 @@ async function main(): Promise<void> {
   tabId = tab?.id;
   tabUrl = tab?.url;
   status = await send({ type: 'getStatus' });
+  offset = createOffsetSender(status?.entry?.offset ?? 0, sendOffset);
   renderStatus();
 
   $('toggle').addEventListener('change', async () => {
@@ -146,9 +145,15 @@ async function main(): Promise<void> {
     window.close();
   });
 
-  $('offset').addEventListener('change', () => void sendOffset(Number($<HTMLInputElement>('offset').value)));
-  $('offset-minus').addEventListener('click', () => void sendOffset(currentOffset() - 1));
-  $('offset-plus').addEventListener('click', () => void sendOffset(currentOffset() + 1));
+  $('offset').addEventListener('change', () => void offset.set(Number($<HTMLInputElement>('offset').value)));
+  $('offset-minus').addEventListener('click', () => {
+    void offset.add(-1);
+    renderStatus();
+  });
+  $('offset-plus').addEventListener('click', () => {
+    void offset.add(1);
+    renderStatus();
+  });
 
   await initSettings();
   await renderLibrary();

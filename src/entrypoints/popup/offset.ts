@@ -1,0 +1,23 @@
+/**
+ * Tracks the offset locally and sends changes one at a time, so rapid clicks
+ * accumulate instead of reading a stale value, and are persisted in order.
+ */
+export function createOffsetSender(initial: number, send: (offset: number) => Promise<void>) {
+  let value = initial;
+  let chain = Promise.resolve();
+  return {
+    get value(): number {
+      return value;
+    },
+    set(offset: number): Promise<void> {
+      if (!Number.isFinite(offset)) return chain;
+      value = Math.round(offset * 10) / 10;
+      const target = value;
+      chain = chain.then(() => send(target));
+      return chain;
+    },
+    add(delta: number): Promise<void> {
+      return this.set(value + delta);
+    },
+  };
+}
