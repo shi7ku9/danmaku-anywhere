@@ -215,4 +215,22 @@ describe('Controller', () => {
     controller.tick();
     expect(drawn()).toBe(1);
   });
+
+  it('waits for a load already in progress for the same URL', async () => {
+    await saveEntry({ urlKey: 'https://b.com/', title: 'B', fileName: 'b.xml' }, comments);
+    url = 'https://b.com/';
+    const navigating = controller.checkUrl();
+    const status = await controller.handleMessage({ type: 'getStatus' });
+    await navigating;
+    expect(status.entry).toMatchObject({ fileName: 'b.xml' });
+  });
+
+  it('rejects changes meant for another page', async () => {
+    await controller.handleMessage({ type: 'setEnabled', enabled: true, urlKey: 'https://old.com/' });
+    const status = await controller.handleMessage({ type: 'setOffset', offset: 13, urlKey: 'https://old.com/' });
+    expect(status).toMatchObject({ urlKey: PAGE, enabled: false, entry: { offset: 0 } });
+    expect((await getEntry(PAGE))?.offset).toBe(0);
+    await controller.handleMessage({ type: 'setOffset', offset: 2, urlKey: PAGE });
+    expect(controller.status().entry?.offset).toBe(2);
+  });
 });
