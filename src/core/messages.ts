@@ -11,7 +11,8 @@ export interface Status {
 
 export type Message =
   | { type: 'getStatus' }
-  | { type: 'setEnabled'; enabled: boolean }
+  // `urlKey` names the page the sender saw; a stale change for another page is ignored.
+  | { type: 'setEnabled'; enabled: boolean; urlKey?: string }
   | { type: 'toggle' }
-  | { type: 'setOffset'; offset: number }
+  | { type: 'setOffset'; offset: number; urlKey?: string }
   | { type: 'reload' };

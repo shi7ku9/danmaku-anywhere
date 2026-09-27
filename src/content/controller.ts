@@ -28,6 +28,8 @@ export class Controller {
   private target: HTMLVideoElement | null = null;
   private clock: Clock | null = null;
   private frameId: number | null = null;
+  /** Load of the current key's entry; calls for the same key wait on it. */
+  private loading: Promise<void> = Promise.resolve();
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -44,7 +46,7 @@ export class Controller {
     this.renderer.setSettings(settings);
     // Keep playback time; only the loop length depends on settings (speed).
     if (this.clock instanceof LoopClock && this.entry) {
-      this.clock.setPeriod(loopPeriod(this.entry.comments, settings.speed));
+      this.clock.setPeriod(loopPeriod(this.entry.comments, settings.speed), this.entry.offset);
     }
   }
 
@@ -73,14 +75,15 @@ export class Controller {
     } catch {
       key = '';
     }
-    if (key === this.key) return;
+    if (key === this.key) return this.loading;
     this.key = key;
     this.setEnabled(false);
     // Drop the old entry now so nothing can enable or edit it while the new one loads.
     this.entry = null;
     this.fileName = '';
     this.renderer.setComments([]);
-    await this.reload();
+    this.loading = this.reload();
+    await this.loading;
   }
 
   /** Re-reads the current key's entry from storage. */
@@ -142,19 +145,23 @@ export class Controller {
       case 'getStatus':
         break;
       case 'setEnabled':
-        this.setEnabled(message.enabled);
+        if (this.isFor(message.urlKey)) this.setEnabled(message.enabled);
         break;
       case 'toggle':
         this.toggle();
         break;
       case 'setOffset':
-        await this.setOffset(message.offset);
+        if (this.isFor(message.urlKey)) await this.setOffset(message.offset);
         break;
       case 'reload':
         await this.reload();
         break;
     }
     return this.status();
+  }
+
+  private isFor(urlKey: string | undefined): boolean {
+    return urlKey === undefined || urlKey === this.key;
   }
 
   /** Draws one frame and schedules the next while enabled. */
