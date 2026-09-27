@@ -5,6 +5,7 @@
 export function createOffsetSender(initial: number, send: (offset: number) => Promise<void>) {
   let value = initial;
   let chain = Promise.resolve();
+  let pending = 0;
   return {
     get value(): number {
       return value;
@@ -13,8 +14,13 @@ export function createOffsetSender(initial: number, send: (offset: number) => Pr
       if (!Number.isFinite(offset)) return chain;
       value = Math.round(offset * 10) / 10;
       const target = value;
-      chain = chain.then(() => send(target));
+      pending++;
+      chain = chain.then(() => send(target)).finally(() => pending--);
       return chain;
+    },
+    /** Adopts the stored offset (changed elsewhere) unless local changes are still in flight. */
+    sync(offset: number): void {
+      if (pending === 0) value = offset;
     },
     add(delta: number): Promise<void> {
       return this.set(value + delta);

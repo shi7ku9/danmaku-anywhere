@@ -30,6 +30,8 @@ function adopt(next: Status | null): void {
       adopt(await send({ type: 'setOffset', offset: value, urlKey: key }));
       renderStatus();
     });
+  } else if (next?.entry) {
+    offset.sync(next.entry.offset);
   }
   status = next;
 }

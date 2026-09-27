@@ -33,6 +33,28 @@ describe('createOffsetSender', () => {
   });
 });
 
+describe('createOffsetSender.sync', () => {
+  it('takes the latest stored offset when nothing is pending', async () => {
+    const sent: number[] = [];
+    const sender = createOffsetSender(0, async (v) => void sent.push(v));
+    sender.sync(5);
+    await sender.add(1);
+    expect(sent).toEqual([6]);
+  });
+
+  it('keeps local steps that have not been sent yet', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const sender = createOffsetSender(0, () => gate);
+    const pending = sender.add(1);
+    void sender.add(1);
+    sender.sync(1); // a stale status arriving mid-flight
+    expect(sender.value).toBe(2);
+    release();
+    await pending;
+  });
+});
+
 describe('parseOffsetInput', () => {
   it('reads numbers, including negative and decimal ones', () => {
     expect(parseOffsetInput('-3.5')).toBe(-3.5);
