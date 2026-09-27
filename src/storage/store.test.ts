@@ -110,6 +110,32 @@ describe('entries', () => {
     expect(await hasEntry(meta.urlKey)).toBe((await getEntry(meta.urlKey)) !== null);
   });
 
+  it('does not let an offset write straddle a replacing import', async () => {
+    await saveEntry(meta, comments);
+    // Hold the offset write after it has checked that the entry exists.
+    const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let held = false;
+    vi.spyOn(fakeBrowser.storage.local, 'get').mockImplementation(async (keys) => {
+      const result = await get(keys);
+      if (!held && JSON.stringify(keys).includes('index')) {
+        held = true;
+        await gate;
+      }
+      return result;
+    });
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    const offsetting = setOffset(meta.urlKey, 4);
+    await flush();
+    const importing = saveEntry({ ...meta, fileName: 'new.json' }, comments);
+    await flush();
+    release();
+    await Promise.all([offsetting, importing]);
+    // Serialized: the offset lands first, then the import resets it.
+    expect((await getEntry(meta.urlKey))?.offset).toBe(0);
+  });
+
   it('deletes the entry and its index row', async () => {
     await saveEntry(meta, comments);
     await setOffset(meta.urlKey, 1);

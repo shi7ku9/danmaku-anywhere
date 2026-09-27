@@ -95,4 +95,20 @@ describe('Renderer', () => {
     expect(stage.style.opacity).toBe('0.5');
     expect(stage.style.fontSize).toBe('50px');
   });
+
+  it('frees cap room from expiring comments before spawning new ones', () => {
+    const late: Comment = { time: 8, text: 'late', mode: 'scroll', color: '#ffffff' };
+    renderer.setComments([...Array.from({ length: 150 }, () => c(0)), late]);
+    renderer.frame(0, 1000, 10_000);
+    for (let t = 0.5; t <= 8; t += 0.5) renderer.frame(t, 1000, 10_000);
+    expect([...stage.querySelectorAll('.c')].map((e) => e.textContent)).toEqual(['late']);
+  });
+
+  it('keeps comments on screen when only the opacity changes', () => {
+    renderer.setComments([c(0)]);
+    renderer.frame(1, 1000, 500);
+    renderer.setSettings({ opacity: 0.4, fontScale: 1, speed: 8 });
+    expect(renderer.activeCount).toBe(1);
+    expect(stage.style.opacity).toBe('0.4');
+  });
 });
