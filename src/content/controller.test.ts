@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import type { Comment } from '../core/types';
-import { getEntry, saveEntry } from '../storage/store';
+import { saveEntry, setOffset } from '../storage/store';
 import { Controller } from './controller';
 
 const PAGE = 'https://a.com/p';
@@ -97,10 +97,9 @@ describe('Controller', () => {
     url = 'https://b.com/';
     const pending = controller.checkUrl();
     controller.toggle();
-    await controller.setOffset(5);
+    await controller.onStorageChanged({ [`offset:${PAGE}`]: { newValue: 5 } });
     expect(controller.status()).toMatchObject({ enabled: false, entry: null });
     await pending;
-    expect((await getEntry(PAGE))?.offset).toBe(0);
   });
 
   it('ignores URL changes that normalize to the same key', async () => {
@@ -108,12 +107,6 @@ describe('Controller', () => {
     url = `${PAGE}?utm_source=x`;
     await controller.checkUrl();
     expect(controller.status().enabled).toBe(true);
-  });
-
-  it('persists the offset', async () => {
-    await controller.handleMessage({ type: 'setOffset', offset: -2 });
-    expect(controller.status().entry?.offset).toBe(-2);
-    expect((await getEntry(PAGE))?.offset).toBe(-2);
   });
 
   it('reload picks up a new import and keeps the enabled state', async () => {
@@ -207,7 +200,8 @@ describe('Controller', () => {
       { time: 10, text: 'b', mode: 'scroll', color: '#ffffff' },
     ]);
     await controller.reload();
-    await controller.setOffset(-10);
+    await setOffset(PAGE, -10);
+    await controller.reload();
     vi.useFakeTimers();
     controller.toggle();
     controller.tick();
@@ -226,12 +220,10 @@ describe('Controller', () => {
   });
 
   it('rejects changes meant for another page', async () => {
-    await controller.handleMessage({ type: 'setEnabled', enabled: true, urlKey: 'https://old.com/' });
-    const status = await controller.handleMessage({ type: 'setOffset', offset: 13, urlKey: 'https://old.com/' });
-    expect(status).toMatchObject({ urlKey: PAGE, enabled: false, entry: { offset: 0 } });
-    expect((await getEntry(PAGE))?.offset).toBe(0);
-    await controller.handleMessage({ type: 'setOffset', offset: 2, urlKey: PAGE });
-    expect(controller.status().entry?.offset).toBe(2);
+    const status = await controller.handleMessage({ type: 'setEnabled', enabled: true, urlKey: 'https://old.com/' });
+    expect(status).toMatchObject({ urlKey: PAGE, enabled: false });
+    await controller.handleMessage({ type: 'setEnabled', enabled: true, urlKey: PAGE });
+    expect(controller.status().enabled).toBe(true);
   });
 
   it('ignores a reload that finishes after a newer one', async () => {

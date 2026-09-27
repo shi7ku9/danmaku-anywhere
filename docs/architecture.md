@@ -35,8 +35,10 @@
 
 - **Content script**: injected into every top-level page. Owns the overlay and
   the enabled state for its tab.
-- **Popup**: queries the active tab's content script for status, sends toggle and
-  offset changes, edits global settings, manages the stored library.
+- **Popup**: queries the active tab's content script for status and sends
+  toggles, writes offset changes to storage, edits global settings, manages the
+  stored library. It re-reads the page status before acting, so a site that
+  navigates while the popup is open never gets another page's changes.
 - **Import window** (`import.html`): a small extension page opened with
   `windows.create`. It exists because file pickers cannot be opened reliably from
   either the popup (Firefox closes the popup when the picker opens) or the content
@@ -79,8 +81,7 @@ so a video that starts playing takes over from loop mode.
 | From → To | Message | Payload |
 |---|---|---|
 | popup → content | `getStatus` | — |
-| popup → content | `setEnabled` | `{ enabled }` |
-| popup → content | `setOffset` | `{ offset }` (content persists it) |
+| popup → content | `setEnabled` | `{ enabled, urlKey }` (ignored if `urlKey` is not the current page) |
 | background → content | `toggle` | — |
 | import / popup → content | `reload` | — |
 
@@ -92,10 +93,12 @@ Global settings changes are not messaged; the content script watches the
 in `index` (written after the comments), so importing, replacing or deleting the
 entry from any page reloads it.
 
-Imports and deletes run under one Web Lock (`danmaku-library`) covering the
-comments, the offset and the index row together, so overlapping imports and
-deletes from different windows cannot leave the index and the content out of
-sync.
+Imports, deletes and offset changes run under one Web Lock (`danmaku-library`)
+covering the comments, the offset and the index row together, so overlapping
+changes from different windows cannot leave them out of sync. Web Locks are
+per origin, so these writes happen only in extension pages (popup, import
+window); content scripts run in the page's origin and never write the library.
+They follow offset changes through `storage.onChanged` without reloading.
 
 Before handling any message, the content script re-checks the page URL, so a
 single-page navigation that has not been picked up yet never binds an import

@@ -9,10 +9,11 @@ export interface Status {
   mode: Mode;
 }
 
+// Offsets are written to storage by the popup (under the library lock); content
+// scripts follow them through storage.onChanged.
 export type Message =
   | { type: 'getStatus' }
   // `urlKey` names the page the sender saw; a stale change for another page is ignored.
   | { type: 'setEnabled'; enabled: boolean; urlKey?: string }
   | { type: 'toggle' }
-  | { type: 'setOffset'; offset: number; urlKey?: string }
   | { type: 'reload' };

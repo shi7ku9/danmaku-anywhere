@@ -1,7 +1,7 @@
 import { browser } from 'wxt/browser';
 import type { Message, Status } from '../../core/messages';
 import type { Settings } from '../../core/types';
-import { deleteEntry, getSettings, listEntries, settingsItem } from '../../storage/store';
+import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
 import { createOffsetSender, parseOffsetInput } from './offset';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -27,7 +27,10 @@ function adopt(next: Status | null): void {
   if (next?.urlKey !== status?.urlKey) {
     const key = next?.urlKey;
     offset = createOffsetSender(next?.entry?.offset ?? 0, async (value) => {
-      adopt(await send({ type: 'setOffset', offset: value, urlKey: key }));
+      // Written here, under the library lock shared with import windows; the
+      // page's content script picks it up through storage.onChanged.
+      if (key) await setOffset(key, value);
+      adopt(await send({ type: 'getStatus' }));
       renderStatus();
     });
   } else if (next?.entry) {
@@ -87,6 +90,19 @@ const SLIDERS = {
   speed: (v: number) => `${v}s`,
 } satisfies Record<keyof Settings, (v: number) => string>;
 
+let settingsTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Live-previews while dragging at most every 100 ms, and always saves the final value. */
+function saveSettings(settings: Settings, final: boolean): void {
+  if (!final && settingsTimer !== undefined) return;
+  clearTimeout(settingsTimer);
+  void settingsItem.setValue({ ...settings });
+  settingsTimer = final ? undefined : setTimeout(() => {
+    settingsTimer = undefined;
+    void settingsItem.setValue({ ...settings });
+  }, 100);
+}
+
 async function initSettings(): Promise<void> {
   const settings = await getSettings();
   for (const [key, format] of Object.entries(SLIDERS) as [keyof Settings, (v: number) => string][]) {
@@ -97,8 +113,9 @@ async function initSettings(): Promise<void> {
     input.addEventListener('input', () => {
       settings[key] = Number(input.value);
       output.textContent = format(settings[key]);
-      void settingsItem.setValue({ ...settings });
+      saveSettings(settings, false);
     });
+    input.addEventListener('change', () => saveSettings(settings, true));
   }
 }
 
@@ -166,8 +183,10 @@ async function main(): Promise<void> {
 
   $('offset').addEventListener('change', async () => {
     const value = parseOffsetInput($<HTMLInputElement>('offset').value);
+    const typedFor = status?.urlKey;
     await refresh();
-    if (value !== null && status?.entry) void offset.set(value); // Empty field: just restore it.
+    // Apply only to the page it was typed for; an empty field just restores the value.
+    if (value !== null && status?.entry && status.urlKey === typedFor) void offset.set(value);
     renderStatus();
   });
   const step = async (delta: number) => {

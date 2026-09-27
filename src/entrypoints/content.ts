@@ -2,7 +2,8 @@ import { browser } from 'wxt/browser';
 import { defineContentScript } from 'wxt/utils/define-content-script';
 import { Controller } from '../content/controller';
 import type { Message } from '../core/messages';
-import { getSettings, settingsItem } from '../storage/store';
+import { DEFAULT_SETTINGS } from '../core/types';
+import { settingsItem } from '../storage/store';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -24,9 +25,7 @@ export default defineContentScript({
     ctx.addEventListener(window, 'wxt:locationchange', () => void controller.checkUrl());
     ctx.setInterval(() => void controller.checkUrl(), 1000);
 
-    const unwatch = settingsItem.watch(() => {
-      void getSettings().then((s) => controller.applySettings(s));
-    });
+    const unwatch = settingsItem.watch((settings) => controller.applySettings({ ...DEFAULT_SETTINGS, ...settings }));
     ctx.onInvalidated(() => {
       unwatch();
       controller.setEnabled(false);
@@ -39,7 +38,8 @@ export default defineContentScript({
     ctx.onInvalidated(() => browser.storage.onChanged.removeListener(onStorageChanged));
 
     browser.runtime.onMessage.addListener((message: Message, _sender, sendResponse) => {
-      void controller.handleMessage(message).then(sendResponse);
+      // Always answer: an open channel without a reply leaves the popup waiting forever.
+      controller.handleMessage(message).then(sendResponse, () => sendResponse(null));
       return true; // Keep the channel open for the async response.
     });
   },
