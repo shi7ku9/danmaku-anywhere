@@ -233,4 +233,37 @@ describe('Controller', () => {
     await controller.handleMessage({ type: 'setOffset', offset: 2, urlKey: PAGE });
     expect(controller.status().entry?.offset).toBe(2);
   });
+
+  it('ignores a reload that finishes after a newer one', async () => {
+    // Let the older reload read its data, then hold it before it applies.
+    const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const spy = vi.spyOn(fakeBrowser.storage.local, 'get').mockImplementation(async (keys) => {
+      const result = await get(keys);
+      await gate;
+      return result;
+    });
+    const older = controller.reload();
+    await new Promise((r) => setTimeout(r, 0));
+    spy.mockRestore();
+    await fakeBrowser.storage.local.clear();
+    await controller.reload();
+    release();
+    await older;
+    expect(controller.status().entry).toBeNull();
+  });
+
+  it('reports video mode right after enabling over a playing video', () => {
+    const video = document.createElement('video');
+    Object.defineProperty(video, 'paused', { value: false });
+    video.getBoundingClientRect = () => ({ left: 0, top: 0, width: 640, height: 360 }) as DOMRect;
+    document.body.append(video);
+    try {
+      controller.toggle();
+      expect(controller.status().mode).toBe('video');
+    } finally {
+      video.remove();
+    }
+  });
 });
