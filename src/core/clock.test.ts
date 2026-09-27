@@ -46,6 +46,15 @@ describe('LoopClock', () => {
     expect(clock.now(-10)).toBe(2);
   });
 
+  it('keeps the shifted position when the period changes', () => {
+    let ms = 0;
+    const clock = new LoopClock(18, () => ms);
+    ms = 5000;
+    expect(clock.now(-10)).toBe(13);
+    clock.setPeriod(26, -10);
+    expect(clock.now(-10)).toBe(13);
+  });
+
   it('never wraps with a zero period', () => {
     let ms = 0;
     const clock = new LoopClock(0, () => ms);

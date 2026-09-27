@@ -31,11 +31,11 @@ export class LoopClock implements Clock {
     this.startedAt = perfNow();
   }
 
-  /** Changes the loop length, keeping the current position within the loop. */
-  setPeriod(period: number): void {
-    const position = this.now();
+  /** Changes the loop length, keeping the position as seen with `shift` (see `now`). */
+  setPeriod(period: number, shift = 0): void {
+    const position = this.now(shift);
     this.period = period;
-    this.startedAt = this.perfNow() - position * 1000;
+    this.startedAt = this.perfNow() - (position - shift) * 1000;
   }
 
   /**
