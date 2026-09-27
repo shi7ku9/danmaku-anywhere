@@ -16,10 +16,27 @@ const RESTRICTED = [
 let tabId: number | undefined;
 let tabUrl: string | undefined;
 let status: Status | null = null;
-let offset = createOffsetSender(0, sendOffset);
+let offset = createOffsetSender(0, async () => {});
 
-async function sendOffset(value: number): Promise<void> {
-  status = await send({ type: 'setOffset', offset: value });
+/**
+ * Takes a fresh status. When the page's key changed (e.g. the site moved to the
+ * next video), the offset sender restarts from the new page's offset; each
+ * sender only ever writes to the key it was created for.
+ */
+function adopt(next: Status | null): void {
+  if (next?.urlKey !== status?.urlKey) {
+    const key = next?.urlKey;
+    offset = createOffsetSender(next?.entry?.offset ?? 0, async (value) => {
+      adopt(await send({ type: 'setOffset', offset: value, urlKey: key }));
+      renderStatus();
+    });
+  }
+  status = next;
+}
+
+/** Re-reads the page before acting, in case the site navigated while the popup was open. */
+async function refresh(): Promise<void> {
+  adopt(await send({ type: 'getStatus' }));
   renderStatus();
 }
 
@@ -109,7 +126,7 @@ async function renderLibrary(): Promise<void> {
     remove.addEventListener('click', async () => {
       await deleteEntry(entry.urlKey);
       if (entry.urlKey === status?.urlKey) {
-        status = await send({ type: 'reload' });
+        adopt(await send({ type: 'reload' }));
         renderStatus();
       }
       await renderLibrary();
@@ -124,16 +141,16 @@ async function main(): Promise<void> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
   tabUrl = tab?.url;
-  status = await send({ type: 'getStatus' });
-  offset = createOffsetSender(status?.entry?.offset ?? 0, sendOffset);
-  renderStatus();
+  await refresh();
 
   $('toggle').addEventListener('change', async () => {
-    status = await send({ type: 'setEnabled', enabled: $<HTMLInputElement>('toggle').checked });
+    const enabled = $<HTMLInputElement>('toggle').checked;
+    adopt(await send({ type: 'setEnabled', enabled, urlKey: status?.urlKey }));
     renderStatus();
   });
 
   $('import').addEventListener('click', async () => {
+    await refresh();
     if (!status || tabId === undefined) return;
     const query = new URLSearchParams({ urlKey: status.urlKey, tabId: String(tabId), title: status.title });
     await browser.windows.create({
@@ -145,19 +162,20 @@ async function main(): Promise<void> {
     window.close();
   });
 
-  $('offset').addEventListener('change', () => {
+  $('offset').addEventListener('change', async () => {
     const value = parseOffsetInput($<HTMLInputElement>('offset').value);
-    if (value === null) renderStatus(); // Restore the current offset instead of sending 0.
-    else void offset.set(value);
-  });
-  $('offset-minus').addEventListener('click', () => {
-    void offset.add(-1);
+    await refresh();
+    if (value !== null && status?.entry) void offset.set(value); // Empty field: just restore it.
     renderStatus();
   });
-  $('offset-plus').addEventListener('click', () => {
-    void offset.add(1);
+  const step = async (delta: number) => {
+    await refresh();
+    if (!status?.entry) return;
+    void offset.add(delta);
     renderStatus();
-  });
+  };
+  $('offset-minus').addEventListener('click', () => void step(-1));
+  $('offset-plus').addEventListener('click', () => void step(1));
 
   await initSettings();
   await renderLibrary();
