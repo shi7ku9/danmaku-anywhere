@@ -30,6 +30,8 @@ export class Controller {
   private frameId: number | null = null;
   /** Load of the current key's entry; calls for the same key wait on it. */
   private loading: Promise<void> = Promise.resolve();
+  /** Bumped by every reload so only the newest one applies its result. */
+  private loadVersion = 0;
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -88,9 +90,11 @@ export class Controller {
 
   /** Re-reads the current key's entry from storage. */
   async reload(): Promise<void> {
+    const version = ++this.loadVersion;
+    const [entry, index] = await Promise.all([getEntry(this.key), listEntries()]);
+    // A newer reload (or a URL change, which reloads) started meanwhile.
+    if (version !== this.loadVersion) return;
     const key = this.key;
-    const [entry, index] = await Promise.all([getEntry(key), listEntries()]);
-    if (key !== this.key) return; // The URL changed while loading.
     const meta = index.find((e) => e.urlKey === key);
     this.entry = entry && meta ? entry : null;
     this.fileName = meta?.fileName ?? '';
@@ -126,7 +130,8 @@ export class Controller {
   }
 
   status(): Status {
-    const target = this.enabled ? this.target : chooseTarget(null, document.querySelectorAll('video'));
+    // Before the first frame picks a target, predict it with the same rule.
+    const target = this.target ?? chooseTarget(null, document.querySelectorAll('video'));
     return {
       urlKey: this.key,
       title: this.deps.getTitle(),
