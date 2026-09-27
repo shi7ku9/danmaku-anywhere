@@ -6,40 +6,55 @@
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
-    <section>
-      <p id="page"></p>
-      <label class="row">
-        <input id="toggle" type="checkbox" />
-        <span>Show danmaku</span>
-        <span id="mode" class="muted"></span>
-      </label>
-      <button id="import" type="button">Import file…</button>
+    <header>
+      <div class="logo" aria-hidden="true">弾</div>
+      <h1>Danmaku</h1>
+      <span id="mode" class="badge" hidden></span>
+    </header>
+
+    <section id="page-card" class="card">
+      <div class="row">
+        <div class="page-info">
+          <div id="page" class="page-title"></div>
+          <div id="page-meta" class="meta"></div>
+        </div>
+        <input id="toggle" class="switch" type="checkbox" role="switch" aria-label="Show danmaku" />
+      </div>
+      <button id="import" class="button" type="button">Import file…</button>
     </section>
 
-    <section id="offset-row" class="row" hidden>
-      <span>Offset</span>
-      <button id="offset-minus" type="button">−1s</button>
-      <input id="offset" type="number" step="0.1" />
-      <button id="offset-plus" type="button">+1s</button>
+    <section id="offset-row" class="card" hidden>
+      <div class="label">Offset</div>
+      <div class="stepper">
+        <button id="offset-minus" class="chip" type="button" aria-label="Offset minus one second">−1s</button>
+        <label class="offset-value">
+          <input id="offset" type="number" step="0.1" aria-label="Offset in seconds" />
+          <span>s</span>
+        </label>
+        <button id="offset-plus" class="chip" type="button" aria-label="Offset plus one second">+1s</button>
+      </div>
     </section>
 
-    <section>
+    <section class="card">
       <label class="slider">
-        <span>Opacity <output id="opacity-value"></output></span>
+        <span class="row"><span>Opacity</span><output id="opacity-value"></output></span>
         <input id="opacity" type="range" min="0.1" max="1" step="0.05" />
       </label>
       <label class="slider">
-        <span>Font size <output id="fontScale-value"></output></span>
+        <span class="row"><span>Font size</span><output id="fontScale-value"></output></span>
         <input id="fontScale" type="range" min="0.5" max="2" step="0.1" />
       </label>
       <label class="slider">
-        <span>Speed <output id="speed-value"></output></span>
+        <span class="row"><span>Speed</span><output id="speed-value"></output></span>
         <input id="speed" type="range" min="4" max="16" step="1" />
       </label>
     </section>
 
-    <details>
-      <summary>Library (<span id="library-count">0</span>)</summary>
+    <details class="library">
+      <summary>
+        <span>Library (<span id="library-count">0</span>)</span>
+        <span class="chevron" aria-hidden="true">›</span>
+      </summary>
       <ul id="library"></ul>
     </details>
 

@@ -61,24 +61,32 @@ function isRestricted(url: string | undefined): boolean {
 function renderStatus(): void {
   const toggle = $<HTMLInputElement>('toggle');
   const importButton = $<HTMLButtonElement>('import');
+  const mode = $('mode');
+  const entry = status?.entry ?? null;
+
+  $('page-card').classList.toggle('disabled', !status);
   if (!status) {
-    $('page').textContent = isRestricted(tabUrl)
-      ? "Danmaku isn't available on this page."
-      : 'Reload the page to use danmaku.';
-    toggle.disabled = true;
-    importButton.disabled = true;
-    $('offset-row').hidden = true;
-    $('mode').textContent = '';
-    return;
+    $('page').textContent = isRestricted(tabUrl) ? 'Not available on this page' : 'Reload the page to use danmaku';
+    $('page-meta').textContent = '';
+  } else if (entry) {
+    $('page').textContent = entry.fileName;
+    $('page').title = entry.fileName;
+    $('page-meta').textContent = `${entry.count} comments`;
+  } else {
+    $('page').textContent = 'No danmaku for this page';
+    $('page-meta').textContent = 'Import a Bilibili XML or JSON file';
   }
-  const { entry } = status;
-  $('page').textContent = entry
-    ? `Loaded: ${entry.fileName} (${entry.count} comments)`
-    : 'No danmaku for this page.';
+
   toggle.disabled = !entry;
-  toggle.checked = status.enabled;
-  importButton.disabled = false;
-  $('mode').textContent = status.enabled ? `(${status.mode === 'video' ? 'video sync' : 'loop'})` : '';
+  toggle.checked = status?.enabled ?? false;
+  importButton.disabled = !status;
+  // Importing is the main action until the page has danmaku.
+  importButton.classList.toggle('primary', !!status && !entry);
+
+  mode.hidden = !status?.enabled;
+  mode.textContent = status?.mode === 'video' ? 'Video sync' : 'Loop';
+  mode.classList.toggle('video', status?.mode === 'video');
+
   $('offset-row').hidden = !entry;
   // The local value leads while offset changes are still in flight.
   if (entry) $<HTMLInputElement>('offset').value = String(offset.value);
@@ -87,7 +95,7 @@ function renderStatus(): void {
 const SLIDERS = {
   opacity: (v: number) => `${Math.round(v * 100)}%`,
   fontScale: (v: number) => `${v.toFixed(1)}×`,
-  speed: (v: number) => `${v}s`,
+  speed: (v: number) => `${v} s`,
 } satisfies Record<keyof Settings, (v: number) => string>;
 
 let settingsTimer: ReturnType<typeof setTimeout> | undefined;
@@ -108,11 +116,17 @@ async function initSettings(): Promise<void> {
   for (const [key, format] of Object.entries(SLIDERS) as [keyof Settings, (v: number) => string][]) {
     const input = $<HTMLInputElement>(key);
     const output = $(`${key}-value`);
+    const paint = () => {
+      output.textContent = format(settings[key]);
+      // Chrome has no range progress pseudo-element; the track gradient reads this.
+      const fill = (Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min));
+      input.style.setProperty('--fill', `${fill * 100}%`);
+    };
     input.value = String(settings[key]);
-    output.textContent = format(settings[key]);
+    paint();
     input.addEventListener('input', () => {
       settings[key] = Number(input.value);
-      output.textContent = format(settings[key]);
+      paint();
       saveSettings(settings, false);
     });
     input.addEventListener('change', () => saveSettings(settings, true));
@@ -141,7 +155,10 @@ async function renderLibrary(): Promise<void> {
 
     const remove = document.createElement('button');
     remove.type = 'button';
-    remove.textContent = 'Delete';
+    remove.className = 'delete';
+    remove.textContent = '✕';
+    remove.title = 'Delete';
+    remove.setAttribute('aria-label', `Delete danmaku for ${entry.title || entry.urlKey}`);
     remove.addEventListener('click', async () => {
       await deleteEntry(entry.urlKey);
       if (entry.urlKey === status?.urlKey) {
