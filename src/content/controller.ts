@@ -136,6 +136,8 @@ export class Controller {
   }
 
   async handleMessage(message: Message): Promise<Status> {
+    // SPA navigations can land after the location event fired; never act on a stale page.
+    await this.checkUrl();
     switch (message.type) {
       case 'getStatus':
         break;
@@ -167,7 +169,10 @@ export class Controller {
       this.renderer.clear();
     }
     const { width, height } = this.overlay.layout();
-    this.renderer.frame(this.clock.now() + this.entry.offset, width, height);
+    // In loop mode the offset shifts the loop phase; with a video it shifts the timeline.
+    const { offset } = this.entry;
+    const t = this.clock instanceof LoopClock ? this.clock.now(offset) : this.clock.now() + offset;
+    this.renderer.frame(t, width, height);
     this.scheduleFrame();
   }
 

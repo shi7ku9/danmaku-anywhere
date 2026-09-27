@@ -194,4 +194,25 @@ describe('Controller', () => {
     controller.tick();
     expect(drawn()).toBe(0); // t ≈ 20 s: both comments (0 s, 1 s) have crossed.
   });
+
+  it('answers messages for the current URL even before the location event lands', async () => {
+    url = 'https://b.com/';
+    const status = await controller.handleMessage({ type: 'getStatus' });
+    expect(status.urlKey).toBe('https://b.com/');
+  });
+
+  it('reaches every comment in loop mode with a negative offset', async () => {
+    await saveEntry({ urlKey: PAGE, title: 'A', fileName: 'a.json' }, [
+      { time: 0, text: 'a', mode: 'scroll', color: '#ffffff' },
+      { time: 10, text: 'b', mode: 'scroll', color: '#ffffff' },
+    ]);
+    await controller.reload();
+    await controller.setOffset(-10);
+    vi.useFakeTimers();
+    controller.toggle();
+    controller.tick();
+    vi.advanceTimersByTime(5000); // 18 s loop shifted by -10 s: position 13, comment at 10 s on screen.
+    controller.tick();
+    expect(drawn()).toBe(1);
+  });
 });
