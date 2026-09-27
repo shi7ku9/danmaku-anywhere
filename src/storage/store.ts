@@ -71,8 +71,14 @@ export async function saveEntry(
   });
 }
 
+/**
+ * Runs under the library lock so it cannot straddle an import (which resets the
+ * offset) or a delete. Call it from extension pages, which share that lock.
+ */
 export async function setOffset(urlKey: string, offset: number): Promise<void> {
-  if (await hasEntry(urlKey)) await storage.setItem<number>(offsetKey(urlKey), offset);
+  await exclusive(async () => {
+    if (await hasEntry(urlKey)) await storage.setItem<number>(offsetKey(urlKey), offset);
+  });
 }
 
 export async function deleteEntry(urlKey: string): Promise<void> {

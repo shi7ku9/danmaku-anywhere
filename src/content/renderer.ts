@@ -50,10 +50,12 @@ export class Renderer {
   }
 
   setSettings(settings: Settings): void {
+    // Font size and speed change lanes and positions; opacity does not need a redraw.
+    const relayout = settings.fontScale !== this.settings.fontScale || settings.speed !== this.settings.speed;
     this.settings = settings;
     this.stage.style.opacity = String(settings.opacity);
     this.stage.style.fontSize = `${BASE_FONT_SIZE * settings.fontScale}px`;
-    this.clear();
+    if (relayout) this.clear();
   }
 
   /** Removes everything; the next frame re-spawns whatever should be visible. */
@@ -72,8 +74,9 @@ export class Renderer {
     if (Number.isNaN(this.lastT) || t < this.lastT || t - this.lastT > SEEK_THRESHOLD) this.reset(t);
     this.lastT = t;
     const g: StageGeometry = { width: this.width, speed: this.settings.speed };
-    this.spawn(t, g);
+    // Expire first so comments leaving this frame free room under the cap.
     this.update(t, g);
+    this.spawn(t, g);
   }
 
   private get laneHeight(): number {
@@ -112,6 +115,7 @@ export class Renderer {
         continue;
       }
       el.style.top = `${lane * this.laneHeight}px`;
+      if (comment.mode === 'scroll') el.style.transform = `translateX(${scrollX(g, comment.time, width, t)}px)`;
       this.active.push({ comment, el, width });
     }
   }
