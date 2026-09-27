@@ -21,3 +21,10 @@ export function createOffsetSender(initial: number, send: (offset: number) => Pr
     },
   };
 }
+
+/** Reads the offset field; null for an empty or non-numeric value, which must not be sent. */
+export function parseOffsetInput(text: string): number | null {
+  if (text.trim() === '') return null;
+  const value = Number(text);
+  return Number.isFinite(value) ? value : null;
+}

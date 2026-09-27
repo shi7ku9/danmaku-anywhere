@@ -2,7 +2,7 @@ import { browser } from 'wxt/browser';
 import type { Message, Status } from '../../core/messages';
 import type { Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, settingsItem } from '../../storage/store';
-import { createOffsetSender } from './offset';
+import { createOffsetSender, parseOffsetInput } from './offset';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -145,7 +145,11 @@ async function main(): Promise<void> {
     window.close();
   });
 
-  $('offset').addEventListener('change', () => void offset.set(Number($<HTMLInputElement>('offset').value)));
+  $('offset').addEventListener('change', () => {
+    const value = parseOffsetInput($<HTMLInputElement>('offset').value);
+    if (value === null) renderStatus(); // Restore the current offset instead of sending 0.
+    else void offset.set(value);
+  });
   $('offset-minus').addEventListener('click', () => {
     void offset.add(-1);
     renderStatus();
