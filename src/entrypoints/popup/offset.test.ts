@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createOffsetSender } from './offset';
+import { createOffsetSender, parseOffsetInput } from './offset';
 
 describe('createOffsetSender', () => {
   it('accumulates rapid steps and sends them in order', async () => {
@@ -30,5 +30,19 @@ describe('createOffsetSender', () => {
     const sender = createOffsetSender(2, async () => {});
     void sender.set(Number.NaN);
     expect(sender.value).toBe(2);
+  });
+});
+
+describe('parseOffsetInput', () => {
+  it('reads numbers, including negative and decimal ones', () => {
+    expect(parseOffsetInput('-3.5')).toBe(-3.5);
+    expect(parseOffsetInput(' 2 ')).toBe(2);
+    expect(parseOffsetInput('0')).toBe(0);
+  });
+
+  it('rejects an empty or non-numeric field', () => {
+    expect(parseOffsetInput('')).toBeNull();
+    expect(parseOffsetInput('   ')).toBeNull();
+    expect(parseOffsetInput('abc')).toBeNull();
   });
 });
