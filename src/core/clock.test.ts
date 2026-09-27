@@ -36,6 +36,16 @@ describe('LoopClock', () => {
     expect(clock.now()).toBe(10);
   });
 
+  it('shifts within the loop, wrapping negative positions', () => {
+    let ms = 0;
+    const clock = new LoopClock(18, () => ms);
+    expect(clock.now(-10)).toBe(8);
+    ms = 5000;
+    expect(clock.now(-10)).toBe(13);
+    ms = 12_000;
+    expect(clock.now(-10)).toBe(2);
+  });
+
   it('never wraps with a zero period', () => {
     let ms = 0;
     const clock = new LoopClock(0, () => ms);

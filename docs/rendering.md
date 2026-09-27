@@ -9,7 +9,8 @@ Both clocks expose `now(): number` in seconds. The renderer uses
   comments automatically, since positions are derived from time alone.
 - **`LoopClock`**: returns `(performance.now() - startedAt) / 1000`, starting when
   danmaku is turned on. After the last comment's time plus the display duration,
-  it wraps back to 0.
+  it wraps back to 0. The entry's offset shifts the position within the loop
+  (applied before wrapping), so a negative offset never cuts off the last comments.
 
 The controller uses `VideoClock` when `video-finder` has a target, otherwise
 `LoopClock`. If the target video changes or disappears, the controller swaps the

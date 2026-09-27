@@ -38,9 +38,13 @@ export class LoopClock implements Clock {
     this.startedAt = this.perfNow() - position * 1000;
   }
 
-  now(): number {
-    const elapsed = (this.perfNow() - this.startedAt) / 1000;
-    return this.period > 0 ? elapsed % this.period : elapsed;
+  /**
+   * Position in the loop, optionally shifted by `shift` seconds. The shift is
+   * applied before wrapping so every part of the loop stays reachable.
+   */
+  now(shift = 0): number {
+    const t = (this.perfNow() - this.startedAt) / 1000 + shift;
+    return this.period > 0 ? ((t % this.period) + this.period) % this.period : t;
   }
 }
 
