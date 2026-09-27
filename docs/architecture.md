@@ -92,8 +92,14 @@ Global settings changes are not messaged; the content script watches the
 in `index` (written after the comments), so importing, replacing or deleting the
 entry from any page reloads it.
 
-Index updates (import, delete) run under a Web Lock (`danmaku-index`), so two
-import windows or a popup saving at once cannot overwrite each other's rows.
+Imports and deletes run under one Web Lock (`danmaku-library`) covering the
+comments, the offset and the index row together, so overlapping imports and
+deletes from different windows cannot leave the index and the content out of
+sync.
+
+Before handling any message, the content script re-checks the page URL, so a
+single-page navigation that has not been picked up yet never binds an import
+or a toggle to the previous page.
 
 A failed message (no receiver) means the page is restricted or was open before
 the extension was installed; see [ui.md](ui.md#error-handling).
