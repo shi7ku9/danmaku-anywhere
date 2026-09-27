@@ -2,7 +2,7 @@ import { LoopClock, VideoClock, loopPeriod, type Clock } from '../core/clock';
 import type { Message, Status } from '../core/messages';
 import { DEFAULT_SETTINGS, type DanmakuEntry, type Settings } from '../core/types';
 import { urlKey } from '../core/url-key';
-import { getEntry, getSettings, listEntries, setOffset } from '../storage/store';
+import { getEntry, getSettings, listEntries } from '../storage/store';
 import { Overlay } from './overlay';
 import { Renderer } from './renderer';
 import { chooseTarget } from './video-finder';
@@ -58,7 +58,7 @@ export class Controller {
    * comments are in place once its row changes, and offset writes never touch it.
    */
   async onStorageChanged(changes: Record<string, { oldValue?: unknown; newValue?: unknown }>): Promise<void> {
-    // Offset set from another tab: apply in place, keeping playback and comments.
+    // Offset written by a popup: apply in place, keeping playback and comments.
     const offset = changes[`offset:${this.key}`]?.newValue;
     if (this.entry && typeof offset === 'number') this.entry.offset = offset;
 
@@ -123,12 +123,6 @@ export class Controller {
     this.setEnabled(!this.enabled);
   }
 
-  async setOffset(offset: number): Promise<void> {
-    if (!this.entry) return;
-    this.entry.offset = offset;
-    await setOffset(this.key, offset);
-  }
-
   status(): Status {
     // Before the first frame picks a target, predict it with the same rule.
     const target = this.target ?? chooseTarget(null, document.querySelectorAll('video'));
@@ -154,9 +148,6 @@ export class Controller {
         break;
       case 'toggle':
         this.toggle();
-        break;
-      case 'setOffset':
-        if (this.isFor(message.urlKey)) await this.setOffset(message.offset);
         break;
       case 'reload':
         await this.reload();
