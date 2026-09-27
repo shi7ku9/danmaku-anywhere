@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from 'wxt/utils/storage';
 import { DEFAULT_SETTINGS, type Comment } from '../core/types';
@@ -9,6 +9,10 @@ const meta = { urlKey: 'https://a.com/p?v=1', title: 'Page', fileName: 'a.xml' }
 
 beforeEach(() => {
   fakeBrowser.reset();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
 });
 
 describe('settings', () => {
@@ -84,6 +88,26 @@ describe('entries', () => {
     await saveEntry(other, comments);
     await Promise.all([deleteEntry(meta.urlKey), deleteEntry(other.urlKey)]);
     expect(await listEntries()).toEqual([]);
+  });
+
+  it('stays consistent when a replacing import and a delete of the same URL overlap', async () => {
+    await saveEntry(meta, comments);
+    // Hold the import right after its comments are written, as a slow storage reply would.
+    const set = fakeBrowser.storage.local.set.bind(fakeBrowser.storage.local);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    vi.spyOn(fakeBrowser.storage.local, 'set').mockImplementation(async (items) => {
+      await set(items);
+      if (`danmaku:${meta.urlKey}` in items) await gate;
+    });
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+    const importing = saveEntry({ ...meta, fileName: 'new.json' }, comments);
+    await flush();
+    const deleting = deleteEntry(meta.urlKey);
+    await flush();
+    release();
+    await Promise.all([importing, deleting]);
+    expect(await hasEntry(meta.urlKey)).toBe((await getEntry(meta.urlKey)) !== null);
   });
 
   it('deletes the entry and its index row', async () => {

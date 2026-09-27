@@ -16,21 +16,24 @@ interface StoredComments {
   offset?: number;
 }
 
-let localIndexQueue: Promise<unknown> = Promise.resolve();
+let localQueue: Promise<unknown> = Promise.resolve();
 
 /**
- * Runs an index read-modify-write exclusively. Web Locks serialize the popup and
- * every import window (they share the extension origin); the local queue covers
- * environments without them.
+ * Runs a library change (comments, offset and index together) exclusively. Web
+ * Locks serialize the popup and every import window (they share the extension
+ * origin); the local queue covers environments without them.
  */
-function updateIndex(update: (index: IndexEntry[]) => IndexEntry[]): Promise<void> {
-  const run = async () => indexItem.setValue(update(await listEntries()));
+function exclusive(run: () => Promise<void>): Promise<void> {
   if (typeof navigator !== 'undefined' && navigator.locks) {
-    return navigator.locks.request('danmaku-index', run).then(() => undefined);
+    return navigator.locks.request('danmaku-library', run).then(() => undefined);
   }
-  const next = localIndexQueue.then(run, run);
-  localIndexQueue = next;
+  const next = localQueue.then(run, run);
+  localQueue = next;
   return next;
+}
+
+async function updateIndex(update: (index: IndexEntry[]) => IndexEntry[]): Promise<void> {
+  await indexItem.setValue(update(await listEntries()));
 }
 
 export async function getSettings(): Promise<Settings> {
@@ -58,12 +61,14 @@ export async function saveEntry(
   meta: { urlKey: string; title: string; fileName: string },
   comments: Comment[],
 ): Promise<void> {
-  await storage.removeItem(offsetKey(meta.urlKey));
-  await storage.setItem<StoredComments>(entryKey(meta.urlKey), { comments });
-  await updateIndex((index) => [
-    ...index.filter((e) => e.urlKey !== meta.urlKey),
-    { ...meta, count: comments.length, importedAt: Date.now() },
-  ]);
+  await exclusive(async () => {
+    await storage.removeItem(offsetKey(meta.urlKey));
+    await storage.setItem<StoredComments>(entryKey(meta.urlKey), { comments });
+    await updateIndex((index) => [
+      ...index.filter((e) => e.urlKey !== meta.urlKey),
+      { ...meta, count: comments.length, importedAt: Date.now() },
+    ]);
+  });
 }
 
 export async function setOffset(urlKey: string, offset: number): Promise<void> {
@@ -71,6 +76,8 @@ export async function setOffset(urlKey: string, offset: number): Promise<void> {
 }
 
 export async function deleteEntry(urlKey: string): Promise<void> {
-  await storage.removeItems([entryKey(urlKey), offsetKey(urlKey)]);
-  await updateIndex((index) => index.filter((e) => e.urlKey !== urlKey));
+  await exclusive(async () => {
+    await storage.removeItems([entryKey(urlKey), offsetKey(urlKey)]);
+    await updateIndex((index) => index.filter((e) => e.urlKey !== urlKey));
+  });
 }
