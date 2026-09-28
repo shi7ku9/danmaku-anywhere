@@ -33,7 +33,9 @@ intentional idiom of this codebase, with the reason next to it in `biome.jsonc`.
 ## Git hooks
 
 [Lefthook](https://lefthook.dev/) runs the hooks, configured in `lefthook.yml`.
-They are installed by `pnpm install` (the `prepare` script).
+They are installed by `pnpm install` (the `prepare` script). pnpm blocks
+dependency install scripts by default; `pnpm-workspace.yaml` leaves Lefthook's
+disabled, since all it would do is install the hooks too.
 
 | Hook | Runs |
 |---|---|
