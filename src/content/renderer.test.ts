@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { Comment, CommentMode } from '../core/types';
+import { DEFAULT_SETTINGS, type Comment, type CommentMode } from '../core/types';
 import { Renderer } from './renderer';
 
 const c = (time: number, mode: CommentMode = 'scroll'): Comment => ({ time, text: `c${time}`, mode, color: '#ffffff' });
@@ -91,7 +91,7 @@ describe('Renderer', () => {
   });
 
   it('applies opacity and font scale to the stage', () => {
-    renderer.setSettings({ opacity: 0.5, fontScale: 2, speed: 8 });
+    renderer.setSettings({ ...DEFAULT_SETTINGS, opacity: 0.5, fontScale: 2 });
     expect(stage.style.opacity).toBe('0.5');
     expect(stage.style.fontSize).toBe('50px');
   });
@@ -107,7 +107,7 @@ describe('Renderer', () => {
   it('keeps comments on screen when only the opacity changes', () => {
     renderer.setComments([c(0)]);
     renderer.frame(1, 1000, 500);
-    renderer.setSettings({ opacity: 0.4, fontScale: 1, speed: 8 });
+    renderer.setSettings({ ...DEFAULT_SETTINGS, opacity: 0.4 });
     expect(renderer.activeCount).toBe(1);
     expect(stage.style.opacity).toBe('0.4');
   });

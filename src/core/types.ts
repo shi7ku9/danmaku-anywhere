@@ -9,15 +9,49 @@ export interface Comment {
   color: string;
 }
 
+export type TextEffect = 'outline' | 'shadow' | 'both' | 'none';
+
 export interface Settings {
   opacity: number;
   /** Multiplier on the 25 px base font size. */
   fontScale: number;
   /** Seconds for a scrolling comment to cross the overlay. */
   speed: number;
+  effect: TextEffect;
+  /** px */
+  outlineWidth: number;
+  /** '#rrggbb' */
+  outlineColor: string;
+  /** px */
+  shadowBlur: number;
+  /** px, applied to both x and y. */
+  shadowOffset: number;
+  /** '#rrggbb' */
+  shadowColor: string;
+  /** A preset key from `FONT_PRESETS`, or a custom CSS font-family. */
+  fontFamily: string;
+  fontWeight: 400 | 700;
+  /** Fraction of the overlay height, from the top, that comments may use. */
+  displayArea: number;
+  /** Maximum comments on screen at once. */
+  maxActive: number;
 }
 
-export const DEFAULT_SETTINGS: Settings = { opacity: 0.8, fontScale: 1, speed: 8 };
+export const DEFAULT_SETTINGS: Settings = {
+  opacity: 0.8,
+  fontScale: 1,
+  speed: 8,
+  effect: 'outline',
+  outlineWidth: 1,
+  outlineColor: '#000000',
+  shadowBlur: 4,
+  shadowOffset: 1,
+  shadowColor: '#000000',
+  fontFamily: 'system',
+  fontWeight: 700,
+  displayArea: 1,
+  maxActive: 150,
+};
 
 /** Summary of a stored entry, listed in the popup without loading comments. */
 export interface IndexEntry {

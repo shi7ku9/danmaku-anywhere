@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import type { Comment } from '../core/types';
+import { DEFAULT_SETTINGS, type Comment } from '../core/types';
 import { saveEntry, setOffset } from '../storage/store';
 import { Controller } from './controller';
 
@@ -183,7 +183,7 @@ describe('Controller', () => {
     controller.tick();
     vi.advanceTimersByTime(20_000);
     controller.tick();
-    controller.applySettings({ opacity: 0.5, fontScale: 1, speed: 8 });
+    controller.applySettings({ ...DEFAULT_SETTINGS, opacity: 0.5 });
     controller.tick();
     expect(drawn()).toBe(0); // t ≈ 20 s: both comments (0 s, 1 s) have crossed.
   });

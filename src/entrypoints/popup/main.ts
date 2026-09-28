@@ -92,11 +92,13 @@ function renderStatus(): void {
   if (entry) $<HTMLInputElement>('offset').value = String(offset.value);
 }
 
+type NumericKey = { [K in keyof Settings]: number extends Settings[K] ? K : never }[keyof Settings];
+
 const SLIDERS = {
   opacity: (v: number) => `${Math.round(v * 100)}%`,
   fontScale: (v: number) => `${v.toFixed(1)}×`,
   speed: (v: number) => `${v} s`,
-} satisfies Record<keyof Settings, (v: number) => string>;
+} satisfies Partial<Record<NumericKey, (v: number) => string>>;
 
 let settingsTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -113,7 +115,7 @@ function saveSettings(settings: Settings, final: boolean): void {
 
 async function initSettings(): Promise<void> {
   const settings = await getSettings();
-  for (const [key, format] of Object.entries(SLIDERS) as [keyof Settings, (v: number) => string][]) {
+  for (const [key, format] of Object.entries(SLIDERS) as [NumericKey, (v: number) => string][]) {
     const input = $<HTMLInputElement>(key);
     const output = $(`${key}-value`);
     const paint = () => {
