@@ -35,3 +35,4 @@ and one click (or the shortcut) brings the comments back.
 - [rendering.md](rendering.md): clocks, lane allocation, overlay positioning
 - [ui.md](ui.md): popup, import window, keyboard shortcut, error handling
 - [testing.md](testing.md): unit tests and the manual test checklist
+- [tooling.md](tooling.md): formatting, lint, git hooks and CI

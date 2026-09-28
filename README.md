@@ -79,6 +79,8 @@ pnpm build:firefox    # Firefox → .output/firefox-mv2
 | `pnpm dev:firefox` | Run in Firefox with live reload |
 | `pnpm build` / `pnpm build:firefox` | Production build |
 | `pnpm compile` | Type-check |
+| `pnpm lint` | Check formatting and lint (Biome) |
+| `pnpm format` | Fix formatting and safe lint issues |
 | `pnpm test` | Unit tests (Vitest) |
 
 Built with TypeScript and [WXT](https://wxt.dev/). Source layout:
@@ -96,6 +98,9 @@ Design documents live in [docs/](docs/README.md):
 browsers before a change is done.
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/).
+Git hooks format staged files, type-check, check the commit message and run the
+tests before a push; CI runs the same checks on every pull request. See
+[docs/tooling.md](docs/tooling.md).
 
 ## Privacy
 
