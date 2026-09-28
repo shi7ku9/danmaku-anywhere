@@ -11,8 +11,32 @@ From top to bottom:
 4. **Offset**: number input (seconds) plus `−1s` / `+1s` buttons. Applied live
    and saved to the entry. Hidden when the page has no danmaku.
 5. **Settings**: sliders for opacity, font size and speed. Applied live to all tabs.
-6. **Library** (collapsible): every stored entry with title, URL key, file name
+6. **Advanced style** (collapsible): see [Advanced style](#advanced-style).
+7. **Library** (collapsible): every stored entry with title, URL key, file name
    and import date, each with a delete button.
+
+## Advanced style
+
+A collapsed `<details>` section below the basic sliders, styled like the library.
+From top to bottom:
+
+1. **Preview**: one sample comment on a dark, video-like strip, styled with the
+   same helpers as the overlay (`src/core/style.ts`). It updates as controls change.
+2. **Effect**: segmented control with Outline / Shadow / Both / None.
+3. **Fine-tuning** for the selected effect; only the relevant rows are shown:
+   - Outline: width slider and color picker.
+   - Shadow: blur slider, offset slider and color picker.
+4. **Font**: select with System / Sans-serif / Serif / Monospace / Custom.
+   Choosing Custom shows a text input for any CSS `font-family` value.
+5. **Weight**: Normal / Bold toggle.
+6. **Display area**: segmented control with 25% / 50% / 75% / 100%.
+7. **Max on screen**: slider, 20 – 300.
+8. **Reset to defaults**: restores every setting, including opacity, font size
+   and speed, to its default.
+
+Changes apply live to all tabs, like the basic sliders. Sliders save with the
+same debounce as the basic sliders; color pickers, selects, segmented controls
+and the custom font input save on `change`.
 
 ## Import window
 

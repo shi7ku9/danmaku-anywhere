@@ -39,13 +39,14 @@ Because `speed` is "seconds to cross", comments feel equally fast on any overlay
 ## Lane allocation
 
 Lane height is the line height at the current font scale; the lane count is
-`floor(overlayHeight / laneHeight)`.
+`floor(overlayHeight × displayArea / laneHeight)`. Lanes start at the top of the
+overlay, so a smaller display area keeps comments in the upper part of the video.
 
 - **Scroll**: pick the first lane from the top where the previous comment's tail
   has already entered the overlay (no overlap now) and the new comment will not
   catch up with it before the previous one exits (no overlap later).
 - **Top**: first free lane from the top; occupied for 4 s.
-- **Bottom**: first free lane from the bottom; occupied for 4 s.
+- **Bottom**: first free lane from the bottom of the display area; occupied for 4 s.
 
 Lane allocation is a pure function of lane state, comment and time, and is unit-tested.
 
@@ -53,12 +54,40 @@ Lane allocation is a pure function of lane state, comment and time, and is unit-
 
 - The overlay is a host element with a Shadow DOM, so page CSS cannot affect it
   and our CSS cannot leak out.
-- Each comment is an absolutely positioned `<div>` with white-ish text and a dark
-  text outline (`text-shadow`) for readability on any background.
+- Each comment is an absolutely positioned `<div>`. Font family, weight and
+  text effect come from the settings and are set on the stage, so every comment
+  inherits them (see [Text style](#text-style)).
 - Divs that leave the screen go back to a pool and are reused.
-- At most 150 comments are on screen at once; beyond that, new ones are dropped.
+- At most `maxActive` comments are on screen at once; beyond that, new ones are dropped.
 - The overlay has `pointer-events: none` and never blocks clicks.
 - Text width is measured once when a comment is first shown.
+
+## Text style
+
+`src/core/style.ts` turns settings into CSS and is shared by the overlay and the
+popup preview, so the preview always matches what is drawn:
+
+- `textShadow(settings)`: the `text-shadow` value for the current `effect`.
+  - `outline`: eight copies of the text offset by `outlineWidth` in each
+    direction, with no blur, in `outlineColor`.
+  - `shadow`: one copy offset by `shadowOffset` down and right, blurred by
+    `shadowBlur`, in `shadowColor`.
+  - `both`: the outline followed by the shadow.
+  - `none`: `none`.
+- `fontStack(settings)`: maps the presets to font stacks (`system` →
+  `system-ui, sans-serif`, `sans` → `sans-serif`, `serif` → `serif`, `mono` →
+  `monospace`); any other value is used as a custom `font-family` as-is.
+
+## Settings changes
+
+The renderer compares new settings with the previous ones:
+
+- **Relayout** (clear the screen; the next frame re-spawns what should be
+  visible): `fontScale`, `fontFamily`, `fontWeight` (text width and lane height),
+  `speed` (positions) and `displayArea` (lane count).
+- **Restyle only**: `opacity`, `effect` and the outline and shadow fields update
+  the stage style in place.
+- `maxActive` takes effect on the next spawn; comments already on screen stay.
 
 ## Overlay positioning
 

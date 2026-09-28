@@ -85,7 +85,7 @@ fill with Bilibili files.
 | `index` | `{ urlKey, title, fileName, count, importedAt }[]`: a summary list for the popup, so it never loads full comment arrays |
 | `danmaku:<urlKey>` | `{ comments: Comment[] }` |
 | `offset:<urlKey>` | `number`: sync offset in seconds (absent = 0) |
-| `settings` | `{ opacity, fontScale, speed }` |
+| `settings` | `Settings`: see [Settings](#settings) |
 
 - One danmaku file per URL key. Importing onto a URL that already has one asks for
   confirmation before replacing it.
@@ -104,3 +104,21 @@ fill with Bilibili files.
 | `opacity` | 0.1 – 1 | 0.8 | Overlay opacity |
 | `fontScale` | 0.5 – 2 | 1 | Multiplier on the base font size (25 px) |
 | `speed` | 4 – 16 | 8 | Seconds for a scrolling comment to cross the overlay |
+| `effect` | `outline` / `shadow` / `both` / `none` | `outline` | Text effect for readability |
+| `outlineWidth` | 0.5 – 4 | 1 | Outline width in px |
+| `outlineColor` | `#rrggbb` | `#000000` | Outline color |
+| `shadowBlur` | 0 – 10 | 4 | Drop shadow blur radius in px |
+| `shadowOffset` | 0 – 5 | 1 | Drop shadow offset in px, applied to both x and y |
+| `shadowColor` | `#rrggbb` | `#000000` | Drop shadow color |
+| `fontFamily` | `system` / `sans` / `serif` / `mono` / any CSS `font-family` | `system` | Font preset key, or a custom font stack |
+| `fontWeight` | 400 / 700 | 700 | Normal or bold |
+| `displayArea` | 0.25 / 0.5 / 0.75 / 1 | 1 | Fraction of the overlay height, from the top, that comments may use |
+| `maxActive` | 20 – 300 | 150 | Maximum comments on screen at once |
+
+Settings are global and apply to every site. The outline and shadow fields are
+kept even when `effect` does not use them, so switching effects restores the
+previous fine-tuning. The defaults reproduce the original look (1 px black
+outline, bold system font, full height, 150 comments).
+
+`getSettings()` merges the stored value over the defaults, so settings saved by
+an older version gain the new fields without a migration.
