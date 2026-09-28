@@ -3,6 +3,7 @@ import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { type Comment, DEFAULT_SETTINGS } from '../core/types';
 import { saveEntry, setOffset } from '../storage/store';
 import { Controller } from './controller';
+import { videoId } from './video-finder';
 
 const PAGE = 'https://a.com/p';
 const comments: Comment[] = [
@@ -48,6 +49,9 @@ describe('Controller', () => {
       entry: { fileName: 'a.json', count: 2, offset: 0 },
       enabled: false,
       mode: 'loop',
+      videos: [],
+      choice: 'auto',
+      targetId: null,
     });
   });
 
@@ -259,5 +263,76 @@ describe('Controller', () => {
     } finally {
       video.remove();
     }
+  });
+
+  describe('video choice', () => {
+    const videos: HTMLVideoElement[] = [];
+    /** A video in the page with a rendered size, playing unless told otherwise. */
+    const addVideo = (width: number, height: number, paused = false) => {
+      const video = document.createElement('video');
+      Object.defineProperty(video, 'paused', { value: paused });
+      video.getBoundingClientRect = () => ({ left: 0, top: 0, width, height }) as DOMRect;
+      document.body.append(video);
+      videos.push(video);
+      return video;
+    };
+    const setVideo = (choice: 'auto' | 'none' | number, urlKey = PAGE) =>
+      controller.handleMessage({ type: 'setVideo', choice, urlKey });
+
+    afterEach(() => {
+      for (const video of videos.splice(0)) video.remove();
+    });
+
+    it('lists the videos and which one auto follows', () => {
+      const small = addVideo(320, 180);
+      const big = addVideo(1280, 720, true);
+      const status = controller.status();
+      expect(status.videos.map((v) => [v.id, v.width, v.height, v.playing])).toEqual([
+        [videoId(small), 320, 180, true],
+        [videoId(big), 1280, 720, false],
+      ]);
+      // Auto picks the largest playing video; the paused one is skipped.
+      expect(status.targetId).toBe(videoId(small));
+    });
+
+    it('loops with None even while a video plays', async () => {
+      addVideo(640, 360);
+      controller.toggle();
+      controller.tick();
+      expect(controller.status().mode).toBe('video');
+      const status = await setVideo('none');
+      expect(status).toMatchObject({ choice: 'none', mode: 'loop', targetId: null });
+      controller.tick();
+      expect(drawn()).toBeGreaterThan(0);
+    });
+
+    it('follows a chosen video over a larger one', async () => {
+      const small = addVideo(320, 180);
+      addVideo(1280, 720);
+      controller.toggle();
+      controller.tick();
+      const status = await setVideo(videoId(small));
+      expect(status).toMatchObject({ choice: videoId(small), mode: 'video', targetId: videoId(small) });
+    });
+
+    it('falls back to auto when the chosen video goes away', async () => {
+      const small = addVideo(320, 180);
+      const big = addVideo(1280, 720);
+      await setVideo(videoId(small));
+      small.remove();
+      expect(controller.status()).toMatchObject({ choice: 'auto', targetId: videoId(big) });
+    });
+
+    it('ignores a choice meant for another page', async () => {
+      const status = await setVideo('none', 'https://other.com/');
+      expect(status.choice).toBe('auto');
+    });
+
+    it('resets to auto when the URL changes', async () => {
+      await setVideo('none');
+      url = 'https://a.com/q';
+      await controller.checkUrl();
+      expect(controller.status().choice).toBe('auto');
+    });
   });
 });
