@@ -116,7 +116,8 @@ export class Renderer {
       el.style.transform = '';
       this.stage.append(el);
       const width = this.measure(el);
-      const limit = Math.floor((this.height * this.settings.displayArea) / this.laneHeight);
+      // At least one lane, so a small display area on a short overlay never hides everything.
+      const limit = Math.max(1, Math.floor((this.height * this.settings.displayArea) / this.laneHeight));
       const lane = allocateLane(this.lanes, g, { time: comment.time, mode: comment.mode, width }, t, limit);
       if (lane < 0) {
         this.release(el);

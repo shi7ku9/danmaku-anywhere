@@ -40,7 +40,8 @@ Because `speed` is "seconds to cross", comments feel equally fast on any overlay
 
 Lane height is the line height at the current font scale; the lane count is
 `floor(overlayHeight / laneHeight)`. The display area limits each comment to
-`limit = floor(overlayHeight × displayArea / laneHeight)` lanes: scroll and top
+`limit = max(1, floor(overlayHeight × displayArea / laneHeight))` lanes (at least
+one, so a small area on a short overlay never hides every comment): scroll and top
 comments use the first `limit` lanes, bottom comments the last `limit`. A smaller
 display area therefore keeps the middle of the video clear while bottom comments
 stay at the bottom. Where the two ranges overlap (above 50%), top and bottom

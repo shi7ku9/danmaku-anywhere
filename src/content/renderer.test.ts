@@ -153,6 +153,14 @@ describe('Renderer', () => {
     expect(tops.slice(4).every((y) => y >= 375)).toBe(true);
   });
 
+  it('keeps one lane when the display area rounds down to none', () => {
+    // 100 px at 25 px × 1.25 = 3 lanes; a quarter rounds down to 0.
+    renderer.setSettings({ ...DEFAULT_SETTINGS, displayArea: 0.25 });
+    renderer.setComments([c(0), c(0, 'top'), c(0, 'bottom')]);
+    renderer.frame(0, 1000, 100);
+    expect(renderer.activeCount).toBe(3);
+  });
+
   it('caps comments on screen at maxActive', () => {
     renderer.setSettings({ ...DEFAULT_SETTINGS, maxActive: 20 });
     renderer.setComments(Array.from({ length: 50 }, () => c(0)));
