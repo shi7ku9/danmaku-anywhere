@@ -24,9 +24,11 @@ From top to bottom:
    script ignores it if the page changed meanwhile.
 
 Requests from the popup to the page can overlap (quick successive choices, a
-refresh on focus). The popup numbers them and shows only the answer to the
-newest one; a late answer to an older request is dropped, so it can never show
-or restore a stale state.
+refresh on focus, repeated offset steps). Only the answer to the newest request
+is shown; a late answer to an older one is dropped, so it can never show or
+restore a stale state. Every caller, including one whose own answer was
+dropped, resumes only once the newest answer is in, so an action that refreshes
+first (offset, import) always acts on the page the tab is on now.
 4. **Import** button: opens the import window for the current tab.
 5. **Offset**: number input (seconds) plus `−1s` / `+1s` buttons. Applied live
    and saved to the entry. Hidden when the page has no danmaku.

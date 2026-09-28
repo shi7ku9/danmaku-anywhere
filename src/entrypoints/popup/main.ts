@@ -45,15 +45,16 @@ function adopt(next: Status | null): void {
 const latest = createLatest();
 
 /**
- * Sends a message and shows the answer, unless a newer request was sent
- * meanwhile: requests can overlap (e.g. quick video choices, or a refresh on
- * focus), and a late answer to an older one would show or restore stale state.
+ * Sends a message and shows the answer. Requests can overlap (quick video
+ * choices, a refresh on focus, repeated offset steps): only the newest answer is
+ * shown, and every caller resumes only once it is in, so code after
+ * `await request(...)` always sees the current page's `status`.
  */
 async function request(message: Message): Promise<void> {
-  const answer = await latest(send(message));
-  if (!answer) return;
-  adopt(answer.value);
-  renderStatus();
+  await latest(send(message), (next) => {
+    adopt(next);
+    renderStatus();
+  });
 }
 
 /** Re-reads the page before acting, in case the site navigated while the popup was open. */
@@ -131,7 +132,14 @@ function renderVideos(): void {
   if (current.length === options.length && current.every((o, i) => o.value === options[i]!.value)) {
     for (const [i, o] of current.entries()) o.textContent = options[i]!.label;
   } else {
-    select.replaceChildren(...options.map(({ value, label }) => new Option(label, value)));
+    select.replaceChildren(
+      ...options.map(({ value, label }) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        return option;
+      }),
+    );
   }
   select.value = String(status.choice);
 }
