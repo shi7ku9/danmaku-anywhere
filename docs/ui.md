@@ -10,8 +10,8 @@ From top to bottom:
 3. **Video** select: which video danmaku follows (see
    [architecture.md](architecture.md#target-video-selection)). Hidden when the
    page has no danmaku. Options, in order:
-   - `Auto (Video 2)`: automatic; the parentheses name the video it currently
-     follows, or say `none, loop`.
+   - `Auto (Video 2)`: automatic; the parentheses name the video Auto follows,
+     or would follow if chosen, or say `none, loop`.
    - One per video in document order, e.g.
      `Video 2 · 1280×720 · Playing · 3:21 / 10:05` (duration `–` when unknown,
      e.g. a live stream).

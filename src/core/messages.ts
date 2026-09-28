@@ -26,8 +26,8 @@ export interface Status {
   /** Videos with a non-zero size, in document order. */
   videos: VideoInfo[];
   choice: VideoChoice;
-  /** The video actually followed (what `auto` picked), or null in loop mode. */
-  targetId: number | null;
+  /** The video `auto` follows, or would follow if chosen; null when it would loop. */
+  autoTargetId: number | null;
 }
 
 // Offsets are written to storage by the popup (under the library lock); content

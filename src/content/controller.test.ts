@@ -51,7 +51,7 @@ describe('Controller', () => {
       mode: 'loop',
       videos: [],
       choice: 'auto',
-      targetId: null,
+      autoTargetId: null,
     });
   });
 
@@ -292,27 +292,31 @@ describe('Controller', () => {
         [videoId(big), 1280, 720, false],
       ]);
       // Auto picks the largest playing video; the paused one is skipped.
-      expect(status.targetId).toBe(videoId(small));
+      expect(status.autoTargetId).toBe(videoId(small));
     });
 
     it('loops with None even while a video plays', async () => {
-      addVideo(640, 360);
+      const video = addVideo(640, 360);
       controller.toggle();
       controller.tick();
       expect(controller.status().mode).toBe('video');
       const status = await setVideo('none');
-      expect(status).toMatchObject({ choice: 'none', mode: 'loop', targetId: null });
+      // Auto would still follow the playing video; the popup names it in the Auto option.
+      expect(status).toMatchObject({ choice: 'none', mode: 'loop', autoTargetId: videoId(video) });
       controller.tick();
       expect(drawn()).toBeGreaterThan(0);
     });
 
     it('follows a chosen video over a larger one', async () => {
       const small = addVideo(320, 180);
-      addVideo(1280, 720);
+      const big = addVideo(1280, 720);
       controller.toggle();
       controller.tick();
       const status = await setVideo(videoId(small));
-      expect(status).toMatchObject({ choice: videoId(small), mode: 'video', targetId: videoId(small) });
+      expect(status).toMatchObject({ choice: videoId(small), mode: 'video', autoTargetId: videoId(big) });
+      controller.tick();
+      // The overlay sits on the chosen video, not the larger one.
+      expect(document.querySelector<HTMLElement>('danmaku-overlay')?.style.width).toBe('320px');
     });
 
     it('falls back to auto when the chosen video goes away', async () => {
@@ -320,7 +324,7 @@ describe('Controller', () => {
       const big = addVideo(1280, 720);
       await setVideo(videoId(small));
       small.remove();
-      expect(controller.status()).toMatchObject({ choice: 'auto', targetId: videoId(big) });
+      expect(controller.status()).toMatchObject({ choice: 'auto', autoTargetId: videoId(big) });
     });
 
     it('ignores a choice meant for another page', async () => {

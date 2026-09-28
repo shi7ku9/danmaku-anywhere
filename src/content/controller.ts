@@ -146,6 +146,8 @@ export class Controller {
   status(): Status {
     // Same rule as the frame loop, so this is right even before the first frame.
     const target = this.resolveTarget();
+    // While another choice is active, auto starts from scratch, as it would when chosen.
+    const auto = this.choice === 'auto' ? target : resolveTarget('auto', null, document.querySelectorAll('video'));
     return {
       urlKey: this.key,
       title: this.deps.getTitle(),
@@ -156,7 +158,7 @@ export class Controller {
       mode: target ? 'video' : 'loop',
       videos: listVideos(document.querySelectorAll('video')),
       choice: this.choice,
-      targetId: target ? videoId(target) : null,
+      autoTargetId: auto ? videoId(auto) : null,
     };
   }
 

@@ -1,10 +1,11 @@
 import { browser } from 'wxt/browser';
-import type { Message, Status } from '../../core/messages';
+import type { Message, Status, VideoChoice } from '../../core/messages';
 import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
 import { type FontStatus, fontStatus } from './font-check';
 import { createOffsetSender, parseOffsetInput } from './offset';
+import { autoLabel, videoLabel } from './video-label';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -89,6 +90,8 @@ function renderStatus(): void {
   mode.textContent = status?.mode === 'video' ? 'Video sync' : 'Loop';
   mode.classList.toggle('video', status?.mode === 'video');
 
+  renderVideos();
+
   $('offset-row').hidden = !entry;
   // The local value leads while offset changes are still in flight.
   if (entry) $<HTMLInputElement>('offset').value = String(offset.value);
@@ -97,6 +100,33 @@ function renderStatus(): void {
 type NumericKey = { [K in keyof Settings]: number extends Settings[K] ? K : never }[keyof Settings];
 
 const px = (v: number) => `${v} px`;
+/**
+ * Fills the video select: Auto, each video, None. When the same videos are
+ * listed, only the labels change, so refreshing while the list is open does not
+ * close or reset it.
+ */
+function renderVideos(): void {
+  $('video-row').hidden = !status?.entry;
+  if (!status?.entry) return;
+  const select = $<HTMLSelectElement>('video');
+  const options = [
+    { value: 'auto', label: autoLabel(status) },
+    ...status.videos.map((v, i) => ({ value: String(v.id), label: videoLabel(v, i) })),
+    { value: 'none', label: 'None (loop)' },
+  ];
+  const current = [...select.options];
+  if (current.length === options.length && current.every((o, i) => o.value === options[i]!.value)) {
+    for (const [i, o] of current.entries()) o.textContent = options[i]!.label;
+  } else {
+    select.replaceChildren(...options.map(({ value, label }) => new Option(label, value)));
+  }
+  select.value = String(status.choice);
+}
+
+function parseChoice(value: string): VideoChoice {
+  return value === 'auto' || value === 'none' ? value : Number(value);
+}
+
 const SLIDERS = {
   opacity: (v: number) => `${Math.round(v * 100)}%`,
   fontScale: (v: number) => `${v.toFixed(1)}×`,
@@ -409,6 +439,19 @@ async function main(): Promise<void> {
     });
     window.close();
   });
+
+  const video = $<HTMLSelectElement>('video');
+  video.addEventListener('change', async () => {
+    const choice = parseChoice(video.value);
+    const chosenFor = status?.urlKey;
+    await refresh();
+    // Apply only to the page it was chosen on; otherwise the refresh shows the new page.
+    if (status?.urlKey === chosenFor) adopt(await send({ type: 'setVideo', choice, urlKey: chosenFor }));
+    renderStatus();
+  });
+  // Sizes, play state and times change while the popup is open; refresh them as the list opens.
+  video.addEventListener('focus', () => void refresh());
+  video.addEventListener('pointerdown', () => void refresh());
 
   $('offset').addEventListener('change', async () => {
     const value = parseOffsetInput($<HTMLInputElement>('offset').value);

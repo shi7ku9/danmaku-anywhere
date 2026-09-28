@@ -105,13 +105,15 @@ URL key changes.
 | import / popup → content | `reload` | — |
 
 Every message is answered with a `Status`:
-`{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode, videos, choice, targetId }`.
+`{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode, videos, choice, autoTargetId }`.
 
 - `videos`: the page's videos with a non-zero size, in document order, each
   `{ id, width, height, playing, currentTime, duration }`.
 - `choice`: the current choice.
-- `targetId`: the id of the video actually followed (what `auto` picked), or
-  `null` in loop mode.
+- `autoTargetId`: the id of the video `auto` follows, or would follow if chosen
+  while another choice is active, or `null` when it would loop. The popup names
+  it in the Auto option, so the option describes Auto itself rather than the
+  current choice. Whether danmaku currently follows a video is `mode`.
 
 Global settings changes are not messaged; the content script watches the
 `settings` storage key and applies changes live. It also watches its own row
