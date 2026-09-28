@@ -384,8 +384,8 @@ h1 {
   font-family: ui-monospace, monospace;
 }
 
-.hex:invalid,
-.hex[aria-invalid='true'] {
+.hex[aria-invalid='true'],
+.text[aria-invalid='true'] {
   border-color: var(--danger);
 }
 
