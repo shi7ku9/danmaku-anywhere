@@ -58,6 +58,11 @@ From top to bottom:
 7. **Reset to defaults**: restores every setting, including opacity, font size
    and speed, to its default.
 
+Segmented controls and swatches are ARIA radio groups with one tab stop each
+(the checked option, or the first when none is checked, e.g. a typed color).
+Arrow keys move to the previous or next option and select it, wrapping at the
+ends; Home and End jump to the first and last.
+
 Changes apply live to all tabs, like the basic sliders. Sliders save with the
 same debounce as the basic sliders; swatches, selects, segmented controls
 and the custom font input save on `change`; the hex field saves while typing

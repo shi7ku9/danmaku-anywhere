@@ -162,13 +162,40 @@ function bindSlider(key: NumericKey, format: (v: number) => string): void {
   input.addEventListener('change', () => saveSettings(true));
 }
 
+/**
+ * Marks the checked button and keeps a single tab stop in the group: the
+ * checked button, or the first one when none is checked (e.g. a custom color).
+ */
+function paintRadios(buttons: HTMLButtonElement[], checked: (b: HTMLButtonElement, i: number) => boolean): void {
+  const states = buttons.map(checked);
+  const stop = Math.max(0, states.indexOf(true));
+  for (const [i, b] of buttons.entries()) {
+    b.setAttribute('aria-checked', String(states[i]));
+    b.tabIndex = i === stop ? 0 : -1;
+  }
+}
+
+/** Arrow keys move and select within a radio group, wrapping; Home and End jump to the ends. */
+function handleRadioKeys(buttons: HTMLButtonElement[]): void {
+  for (const [i, b] of buttons.entries()) {
+    b.addEventListener('keydown', (e) => {
+      const n = buttons.length;
+      const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: n - 1 }[e.key];
+      if (next === undefined) return;
+      e.preventDefault();
+      const target = buttons[(next + n) % n]!;
+      target.focus();
+      target.click();
+    });
+  }
+}
+
 function bindSegmented(group: HTMLElement): void {
   const key = group.dataset.key as 'effect' | 'fontWeight' | 'displayArea';
   const buttons = [...group.querySelectorAll<HTMLButtonElement>('button')];
-  const paint = () => {
-    for (const b of buttons) b.setAttribute('aria-checked', String(b.dataset.value === String(settings[key])));
-  };
+  const paint = () => paintRadios(buttons, (b) => b.dataset.value === String(settings[key]));
   syncs.push(paint);
+  handleRadioKeys(buttons);
   for (const b of buttons) {
     b.addEventListener('click', () => {
       const value = b.dataset.value!;
@@ -200,10 +227,12 @@ function bindColor(key: (typeof COLORS)[number]): void {
     return b;
   });
   group.append(...buttons);
+  handleRadioKeys(buttons);
+  const paintSwatches = () => paintRadios(buttons, (_, i) => SWATCHES[i] === settings[key]);
   const paint = () => {
     input.value = settings[key];
     input.removeAttribute('aria-invalid');
-    for (const [i, b] of buttons.entries()) b.setAttribute('aria-checked', String(SWATCHES[i] === settings[key]));
+    paintSwatches();
   };
   syncs.push(paint);
   input.addEventListener('input', () => {
@@ -211,7 +240,7 @@ function bindColor(key: (typeof COLORS)[number]): void {
     input.setAttribute('aria-invalid', String(!HEX.test(value)));
     if (!HEX.test(value)) return;
     settings[key] = value.toLowerCase();
-    for (const [i, b] of buttons.entries()) b.setAttribute('aria-checked', String(SWATCHES[i] === settings[key]));
+    paintSwatches();
     saveSettings(false);
   });
   // Leaving the field with an invalid value restores the saved color.
