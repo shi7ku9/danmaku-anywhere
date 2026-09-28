@@ -1,11 +1,11 @@
 import { type Clock, LoopClock, loopPeriod, VideoClock } from '../core/clock';
-import type { Message, Status } from '../core/messages';
+import type { Message, Status, VideoChoice } from '../core/messages';
 import { type DanmakuEntry, DEFAULT_SETTINGS, type Settings } from '../core/types';
 import { urlKey } from '../core/url-key';
 import { getEntry, getSettings, listEntries } from '../storage/store';
 import { Overlay } from './overlay';
 import { Renderer } from './renderer';
-import { chooseTarget } from './video-finder';
+import { listVideos, resolveTarget, videoId } from './video-finder';
 
 export interface ControllerDeps {
   getUrl(): string;
@@ -26,6 +26,8 @@ export class Controller {
   private enabled = false;
   private settings: Settings = DEFAULT_SETTINGS;
   private target: HTMLVideoElement | null = null;
+  /** The popup's video choice; kept only in memory, like the enabled state. */
+  private choice: VideoChoice = 'auto';
   private clock: Clock | null = null;
   private frameId: number | null = null;
   /** Load of the current key's entry; calls for the same key wait on it. */
@@ -80,6 +82,7 @@ export class Controller {
     if (key === this.key) return this.loading;
     this.key = key;
     this.setEnabled(false);
+    this.choice = 'auto';
     // Drop the old entry now so nothing can enable or edit it while the new one loads.
     this.entry = null;
     this.fileName = '';
@@ -123,9 +126,28 @@ export class Controller {
     this.setEnabled(!this.enabled);
   }
 
+  /** Follows another video, or none (loop mode); the next frame rebuilds the clock. */
+  setVideo(choice: VideoChoice): void {
+    this.choice = choice;
+    this.target = null;
+    this.clock = null;
+    this.renderer.clear();
+  }
+
+  /** The target for the current choice; a chosen video that is gone falls back to auto. */
+  private resolveTarget(): HTMLVideoElement | null {
+    const videos = document.querySelectorAll('video');
+    const target = resolveTarget(this.choice, this.target, videos);
+    if (target !== undefined) return target;
+    this.choice = 'auto';
+    return resolveTarget('auto', this.target, videos) ?? null;
+  }
+
   status(): Status {
-    // Before the first frame picks a target, predict it with the same rule.
-    const target = this.target ?? chooseTarget(null, document.querySelectorAll('video'));
+    // Same rule as the frame loop, so this is right even before the first frame.
+    const target = this.resolveTarget();
+    // While another choice is active, auto starts from scratch, as it would when chosen.
+    const auto = this.choice === 'auto' ? target : resolveTarget('auto', null, document.querySelectorAll('video'));
     return {
       urlKey: this.key,
       title: this.deps.getTitle(),
@@ -134,6 +156,9 @@ export class Controller {
         : null,
       enabled: this.enabled,
       mode: target ? 'video' : 'loop',
+      videos: listVideos(document.querySelectorAll('video')),
+      choice: this.choice,
+      autoTargetId: auto ? videoId(auto) : null,
     };
   }
 
@@ -145,6 +170,9 @@ export class Controller {
         break;
       case 'setEnabled':
         if (this.isFor(message.urlKey)) this.setEnabled(message.enabled);
+        break;
+      case 'setVideo':
+        if (this.isFor(message.urlKey)) this.setVideo(message.choice);
         break;
       case 'toggle':
         this.toggle();
@@ -164,7 +192,7 @@ export class Controller {
   tick(): void {
     this.frameId = null;
     if (!this.enabled || !this.entry) return;
-    const target = chooseTarget(this.target, document.querySelectorAll('video'));
+    const target = this.resolveTarget();
     if (target !== this.target || !this.clock) {
       this.target = target;
       this.clock = target

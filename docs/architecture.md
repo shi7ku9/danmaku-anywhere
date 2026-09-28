@@ -70,11 +70,29 @@ entirely in the clock.
 
 ## Target video selection
 
-`video-finder` keeps the current target while it is still in the document and
-has a non-zero size, even when paused, so pausing freezes danmaku instead of
-switching to loop mode. Otherwise it picks the largest playing video, or none
-(loop mode). The controller re-evaluates this every frame while danmaku is on,
-so a video that starts playing takes over from loop mode.
+The popup's video selector sets a **choice** in the content script:
+
+| Choice | Target |
+|---|---|
+| `auto` (default) | Automatic, below |
+| a video id | That video, even when another one is larger or playing |
+| `none` | No video: loop mode, even on a page with videos |
+
+**Automatic**: `video-finder` keeps the current target while it is still in the
+document and has a non-zero size, even when paused, so pausing freezes danmaku
+instead of switching to loop mode. Otherwise it picks the largest playing video,
+or none (loop mode). A video that starts playing takes over from loop mode.
+
+**Video ids** come from a `WeakMap` from element to a counter, so a video keeps
+its id for as long as it exists and ids are never reused. If the chosen video
+leaves the document or loses its size (e.g. a player replaces its element), the
+choice falls back to `auto`.
+
+The controller resolves the choice every frame while danmaku is on; changing it
+clears the screen and rebuilds the clock, so switching between a video and loop
+mode takes effect on the next frame. Like the enabled state, the choice lives
+only in the content script's memory: it resets to `auto` on reload and when the
+URL key changes.
 
 ## Messages
 
@@ -82,11 +100,20 @@ so a video that starts playing takes over from loop mode.
 |---|---|---|
 | popup → content | `getStatus` | — |
 | popup → content | `setEnabled` | `{ enabled, urlKey }` (ignored if `urlKey` is not the current page) |
+| popup → content | `setVideo` | `{ choice, urlKey }`: `choice` is `'auto'`, `'none'` or a video id (ignored if `urlKey` is not the current page) |
 | background → content | `toggle` | — |
 | import / popup → content | `reload` | — |
 
 Every message is answered with a `Status`:
-`{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode }`.
+`{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode, videos, choice, autoTargetId }`.
+
+- `videos`: the page's videos with a non-zero size, in document order, each
+  `{ id, width, height, playing, currentTime, duration }`.
+- `choice`: the current choice.
+- `autoTargetId`: the id of the video `auto` follows, or would follow if chosen
+  while another choice is active, or `null` when it would loop. The popup names
+  it in the Auto option, so the option describes Auto itself rather than the
+  current choice. Whether danmaku currently follows a video is `mode`.
 
 Global settings changes are not messaged; the content script watches the
 `settings` storage key and applies changes live. It also watches its own row

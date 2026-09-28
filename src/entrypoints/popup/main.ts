@@ -1,10 +1,12 @@
 import { browser } from 'wxt/browser';
-import type { Message, Status } from '../../core/messages';
+import type { Message, Status, VideoChoice } from '../../core/messages';
 import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
 import { type FontStatus, fontStatus } from './font-check';
+import { createLatest } from './latest';
 import { createOffsetSender, parseOffsetInput } from './offset';
+import { autoLabel, videoLabel } from './video-label';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -32,8 +34,7 @@ function adopt(next: Status | null): void {
       // Written here, under the library lock shared with import windows; the
       // page's content script picks it up through storage.onChanged.
       if (key) await setOffset(key, value);
-      adopt(await send({ type: 'getStatus' }));
-      renderStatus();
+      await refresh();
     });
   } else if (next?.entry) {
     offset.sync(next.entry.offset);
@@ -41,10 +42,24 @@ function adopt(next: Status | null): void {
   status = next;
 }
 
+const latest = createLatest();
+
+/**
+ * Sends a message and shows the answer. Requests can overlap (quick video
+ * choices, a refresh on focus, repeated offset steps): only the newest answer is
+ * shown, and every caller resumes only once it is in, so code after
+ * `await request(...)` always sees the current page's `status`.
+ */
+async function request(message: Message): Promise<void> {
+  await latest(send(message), (next) => {
+    adopt(next);
+    renderStatus();
+  });
+}
+
 /** Re-reads the page before acting, in case the site navigated while the popup was open. */
 async function refresh(): Promise<void> {
-  adopt(await send({ type: 'getStatus' }));
-  renderStatus();
+  await request({ type: 'getStatus' });
 }
 
 async function send(message: Message): Promise<Status | null> {
@@ -89,6 +104,8 @@ function renderStatus(): void {
   mode.textContent = status?.mode === 'video' ? 'Video sync' : 'Loop';
   mode.classList.toggle('video', status?.mode === 'video');
 
+  renderVideos();
+
   $('offset-row').hidden = !entry;
   // The local value leads while offset changes are still in flight.
   if (entry) $<HTMLInputElement>('offset').value = String(offset.value);
@@ -97,6 +114,40 @@ function renderStatus(): void {
 type NumericKey = { [K in keyof Settings]: number extends Settings[K] ? K : never }[keyof Settings];
 
 const px = (v: number) => `${v} px`;
+/**
+ * Fills the video select: Auto, each video, None. When the same videos are
+ * listed, only the labels change, so refreshing while the list is open does not
+ * close or reset it.
+ */
+function renderVideos(): void {
+  $('video-row').hidden = !status?.entry;
+  if (!status?.entry) return;
+  const select = $<HTMLSelectElement>('video');
+  const options = [
+    { value: 'auto', label: autoLabel(status) },
+    ...status.videos.map((v, i) => ({ value: String(v.id), label: videoLabel(v, i) })),
+    { value: 'none', label: 'None (loop)' },
+  ];
+  const current = [...select.options];
+  if (current.length === options.length && current.every((o, i) => o.value === options[i]!.value)) {
+    for (const [i, o] of current.entries()) o.textContent = options[i]!.label;
+  } else {
+    select.replaceChildren(
+      ...options.map(({ value, label }) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        return option;
+      }),
+    );
+  }
+  select.value = String(status.choice);
+}
+
+function parseChoice(value: string): VideoChoice {
+  return value === 'auto' || value === 'none' ? value : Number(value);
+}
+
 const SLIDERS = {
   opacity: (v: number) => `${Math.round(v * 100)}%`,
   fontScale: (v: number) => `${v.toFixed(1)}×`,
@@ -373,10 +424,7 @@ async function renderLibrary(): Promise<void> {
     remove.setAttribute('aria-label', `Delete danmaku for ${entry.title || entry.urlKey}`);
     remove.addEventListener('click', async () => {
       await deleteEntry(entry.urlKey);
-      if (entry.urlKey === status?.urlKey) {
-        adopt(await send({ type: 'reload' }));
-        renderStatus();
-      }
+      if (entry.urlKey === status?.urlKey) await request({ type: 'reload' });
       await renderLibrary();
     });
 
@@ -393,8 +441,7 @@ async function main(): Promise<void> {
 
   $('toggle').addEventListener('change', async () => {
     const enabled = $<HTMLInputElement>('toggle').checked;
-    adopt(await send({ type: 'setEnabled', enabled, urlKey: status?.urlKey }));
-    renderStatus();
+    await request({ type: 'setEnabled', enabled, urlKey: status?.urlKey });
   });
 
   $('import').addEventListener('click', async () => {
@@ -409,6 +456,16 @@ async function main(): Promise<void> {
     });
     window.close();
   });
+
+  const video = $<HTMLSelectElement>('video');
+  video.addEventListener('change', () => {
+    // Sent right away, in order, for the page it was chosen on; the content script ignores
+    // it if the page has changed since, and only the answer to the last request is shown.
+    void request({ type: 'setVideo', choice: parseChoice(video.value), urlKey: status?.urlKey });
+  });
+  // Sizes, play state and times change while the popup is open; refresh them as the list opens.
+  video.addEventListener('focus', () => void refresh());
+  video.addEventListener('pointerdown', () => void refresh());
 
   $('offset').addEventListener('change', async () => {
     const value = parseOffsetInput($<HTMLInputElement>('offset').value);

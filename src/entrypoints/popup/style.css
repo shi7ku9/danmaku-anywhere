@@ -231,6 +231,17 @@ h1 {
   background: var(--chip-hover);
 }
 
+/* Video selector */
+.video-row {
+  margin-top: 10px;
+}
+
+.video-row select {
+  flex: 1;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
 /* Offset */
 .stepper {
   display: flex;

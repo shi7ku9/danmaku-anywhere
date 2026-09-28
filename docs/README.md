@@ -8,8 +8,11 @@ A personal project: the goal is something fun and pleasant to use, not a store-r
 - Import a danmaku file for the current page and toggle it on/off.
 - **Video mode**: when the page has a playing video, comments follow the video's timeline
   (pause, seek and fullscreen all behave correctly).
-- **Loop mode**: when there is no video, comments play from the moment they are
-  turned on, following the file's timestamps, and loop when finished.
+- **Loop mode**: when there is no video, or the user picks None in the video
+  selector, comments play from the moment they are turned on, following the
+  file's timestamps, and loop when finished.
+- **Video selector**: when a page has several videos, the user can pick which
+  one danmaku follows instead of the automatic choice.
 - Imported danmaku is bound to the page URL and stored locally. Revisiting the URL
   loads it automatically, but it stays **off** until the user turns it on.
 
