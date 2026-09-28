@@ -423,6 +423,12 @@ h1 {
   margin-top: 6px;
 }
 
+.hint {
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: 11px;
+}
+
 .advanced .button {
   margin-top: 4px;
 }

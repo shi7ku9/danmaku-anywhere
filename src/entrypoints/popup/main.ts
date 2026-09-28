@@ -3,6 +3,7 @@ import type { Message, Status } from '../../core/messages';
 import { FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
+import { missingFonts } from './font-check';
 import { createOffsetSender, parseOffsetInput } from './offset';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -220,27 +221,43 @@ function bindColor(key: (typeof COLORS)[number]): void {
   });
 }
 
+/** Why a custom font-family can't be used, or '' if it can. */
+function fontProblem(value: string): string {
+  // The browser ignores an invalid font-family and keeps the old font, and
+  // silently falls back for a font that isn't installed.
+  if (!CSS.supports('font-family', value)) return 'Not a valid CSS font-family';
+  const missing = missingFonts(value);
+  return missing.length ? `Not installed: ${missing.join(', ')}` : '';
+}
+
 function bindFont(): void {
   const select = $<HTMLSelectElement>('fontFamily');
   const custom = $<HTMLInputElement>('fontCustom');
+  const hint = $('fontHint');
+  const mark = (problem: string) => {
+    custom.setAttribute('aria-invalid', String(!!problem));
+    hint.textContent = problem;
+    hint.hidden = !problem;
+  };
   syncs.push(() => {
     const preset = Object.hasOwn(FONT_PRESETS, settings.fontFamily);
     select.value = preset ? settings.fontFamily : 'custom';
     custom.value = preset ? '' : settings.fontFamily;
-    custom.removeAttribute('aria-invalid');
+    mark('');
   });
-  // The browser ignores an invalid font-family, which would silently keep the old font.
-  const valid = (value: string) => CSS.supports('font-family', value);
+  /** Saves the typed font if it can be used; returns whether it was saved. */
   const applyCustom = () => {
     const value = custom.value.trim();
-    custom.setAttribute('aria-invalid', String(!!value && !valid(value)));
-    if (!value || !valid(value)) return false;
+    const problem = value ? fontProblem(value) : '';
+    mark(problem);
+    if (!value || problem) return false;
     settings.fontFamily = value;
     saveSettings(true);
     return true;
   };
   select.addEventListener('change', () => {
     if (select.value !== 'custom') {
+      mark('');
       settings.fontFamily = select.value;
       saveSettings(true);
     } else if (!applyCustom()) {
@@ -250,7 +267,7 @@ function bindFont(): void {
   });
   custom.addEventListener('input', () => {
     const value = custom.value.trim();
-    custom.setAttribute('aria-invalid', String(!!value && !valid(value)));
+    mark(value ? fontProblem(value) : '');
   });
   custom.addEventListener('change', () => {
     if (custom.value.trim()) {

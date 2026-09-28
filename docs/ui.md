@@ -36,10 +36,16 @@ From top to bottom:
    focus. The native `<input type="color">` is not used: its picker opens a
    separate window, which takes focus and closes the popup.
 3. **Font**: select with System / Sans-serif / Serif / Monospace / Custom.
-   Choosing Custom shows a text input for any CSS `font-family` value. A value
-   that is not valid CSS (`CSS.supports('font-family', …)` fails) is marked and
-   not saved, since the browser would ignore it and keep the old font. Clearing
-   the field falls back to System.
+   Choosing Custom shows a text input for any CSS `font-family` value. The value
+   is marked, with the reason shown below the field, and not saved when:
+   - it is not valid CSS (`CSS.supports('font-family', …)` fails), since the
+     browser would ignore it and keep the old font; or
+   - any family in the list is not installed. Each non-generic family is
+     measured on a canvas against two fallbacks (`monospace` and `serif`); if
+     the width matches both, the browser fell back and the family is missing.
+     Generic families (`serif`, `sans-serif`, `system-ui`, …) always pass.
+
+   Clearing the field falls back to System.
 4. **Weight**: Normal / Bold toggle.
 5. **Display area**: segmented control with 25% / 50% / 75% / 100%.
 6. **Max on screen**: slider, 20 – 300.
