@@ -9,7 +9,7 @@ export const FONT_PRESETS: Record<string, string> = {
 };
 
 export function fontStack(s: Pick<Settings, 'fontFamily'>): string {
-  return FONT_PRESETS[s.fontFamily] ?? s.fontFamily;
+  return Object.hasOwn(FONT_PRESETS, s.fontFamily) ? FONT_PRESETS[s.fontFamily]! : s.fontFamily;
 }
 
 type EffectSettings = Pick<

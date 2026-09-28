@@ -50,6 +50,91 @@
       </label>
     </section>
 
+    <details class="advanced">
+      <summary>
+        <span>Advanced style</span>
+        <span class="chevron" aria-hidden="true">›</span>
+      </summary>
+      <section class="card">
+        <div class="preview" aria-hidden="true"><span id="preview">弾幕 Danmaku preview</span></div>
+
+        <div class="field">
+          <div class="label">Effect</div>
+          <div class="segmented" role="radiogroup" aria-label="Text effect" data-key="effect">
+            <button type="button" role="radio" data-value="outline">Outline</button>
+            <button type="button" role="radio" data-value="shadow">Shadow</button>
+            <button type="button" role="radio" data-value="both">Both</button>
+            <button type="button" role="radio" data-value="none">None</button>
+          </div>
+        </div>
+
+        <div id="outline-group">
+          <label class="slider">
+            <span class="row"><span>Outline width</span><output id="outlineWidth-value"></output></span>
+            <input id="outlineWidth" type="range" min="0.5" max="4" step="0.5" />
+          </label>
+          <label class="field row">
+            <span>Outline color</span>
+            <input id="outlineColor" class="color" type="color" />
+          </label>
+        </div>
+
+        <div id="shadow-group">
+          <label class="slider">
+            <span class="row"><span>Shadow blur</span><output id="shadowBlur-value"></output></span>
+            <input id="shadowBlur" type="range" min="0" max="10" step="1" />
+          </label>
+          <label class="slider">
+            <span class="row"><span>Shadow offset</span><output id="shadowOffset-value"></output></span>
+            <input id="shadowOffset" type="range" min="0" max="5" step="0.5" />
+          </label>
+          <label class="field row">
+            <span>Shadow color</span>
+            <input id="shadowColor" class="color" type="color" />
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="row">
+            <span>Font</span>
+            <select id="fontFamily" class="select">
+              <option value="system">System</option>
+              <option value="sans">Sans-serif</option>
+              <option value="serif">Serif</option>
+              <option value="mono">Monospace</option>
+              <option value="custom">Custom…</option>
+            </select>
+          </label>
+          <input id="fontCustom" class="text" type="text" placeholder="e.g. &quot;Noto Sans TC&quot;, sans-serif" aria-label="Custom font family" />
+        </div>
+
+        <div class="field">
+          <div class="label">Weight</div>
+          <div class="segmented" role="radiogroup" aria-label="Font weight" data-key="fontWeight">
+            <button type="button" role="radio" data-value="400">Normal</button>
+            <button type="button" role="radio" data-value="700">Bold</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <div class="label">Display area</div>
+          <div class="segmented" role="radiogroup" aria-label="Display area" data-key="displayArea">
+            <button type="button" role="radio" data-value="0.25">25%</button>
+            <button type="button" role="radio" data-value="0.5">50%</button>
+            <button type="button" role="radio" data-value="0.75">75%</button>
+            <button type="button" role="radio" data-value="1">100%</button>
+          </div>
+        </div>
+
+        <label class="slider">
+          <span class="row"><span>Max on screen</span><output id="maxActive-value"></output></span>
+          <input id="maxActive" type="range" min="20" max="300" step="10" />
+        </label>
+
+        <button id="reset" class="button" type="button">Reset to defaults</button>
+      </section>
+    </details>
+
     <details class="library">
       <summary>
         <span>Library (<span id="library-count">0</span>)</span>

@@ -52,7 +52,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
   color: inherit;
 }
@@ -326,8 +327,85 @@ h1 {
   background: var(--card);
 }
 
+/* Advanced style */
+.preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #3a4a5e, #1c232c);
+  overflow: hidden;
+  white-space: pre;
+  color: #ffffff;
+}
+
+.field {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.field .label {
+  margin-bottom: 4px;
+}
+
+.segmented {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--chip);
+}
+
+.segmented button {
+  flex: 1;
+  padding: 4px 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.segmented button[aria-checked='true'] {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
+}
+
+.color {
+  width: 32px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  cursor: pointer;
+}
+
+.select,
+.text {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+}
+
+.text {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+}
+
+.advanced .button {
+  margin-top: 4px;
+}
+
 /* Library */
-.library summary {
+.library summary,
+.advanced summary {
   display: flex;
   justify-content: space-between;
   padding: 8px 16px 10px;
@@ -337,7 +415,8 @@ h1 {
   list-style: none;
 }
 
-.library summary::-webkit-details-marker {
+.library summary::-webkit-details-marker,
+.advanced summary::-webkit-details-marker {
   display: none;
 }
 
@@ -345,7 +424,8 @@ h1 {
   transition: transform 0.15s;
 }
 
-.library[open] .chevron {
+.library[open] .chevron,
+.advanced[open] .chevron {
   transform: rotate(90deg);
 }
 

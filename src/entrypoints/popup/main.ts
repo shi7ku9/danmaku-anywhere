@@ -1,6 +1,7 @@
 import { browser } from 'wxt/browser';
 import type { Message, Status } from '../../core/messages';
-import type { Settings } from '../../core/types';
+import { FONT_PRESETS, fontStack, textShadow } from '../../core/style';
+import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
 import { createOffsetSender, parseOffsetInput } from './offset';
 
@@ -94,16 +95,27 @@ function renderStatus(): void {
 
 type NumericKey = { [K in keyof Settings]: number extends Settings[K] ? K : never }[keyof Settings];
 
+const px = (v: number) => `${v} px`;
 const SLIDERS = {
   opacity: (v: number) => `${Math.round(v * 100)}%`,
   fontScale: (v: number) => `${v.toFixed(1)}×`,
   speed: (v: number) => `${v} s`,
+  outlineWidth: px,
+  shadowBlur: px,
+  shadowOffset: px,
+  maxActive: (v: number) => String(v),
 } satisfies Partial<Record<NumericKey, (v: number) => string>>;
 
+const COLORS = ['outlineColor', 'shadowColor'] as const;
+
+let settings: Settings = { ...DEFAULT_SETTINGS };
 let settingsTimer: ReturnType<typeof setTimeout> | undefined;
+/** Each control's function that shows the current settings. */
+const syncs: (() => void)[] = [];
 
 /** Live-previews while dragging at most every 100 ms, and always saves the final value. */
-function saveSettings(settings: Settings, final: boolean): void {
+function saveSettings(final: boolean): void {
+  renderAdvanced();
   if (!final && settingsTimer !== undefined) return;
   clearTimeout(settingsTimer);
   void settingsItem.setValue({ ...settings });
@@ -113,26 +125,110 @@ function saveSettings(settings: Settings, final: boolean): void {
   }, 100);
 }
 
-async function initSettings(): Promise<void> {
-  const settings = await getSettings();
-  for (const [key, format] of Object.entries(SLIDERS) as [NumericKey, (v: number) => string][]) {
-    const input = $<HTMLInputElement>(key);
-    const output = $(`${key}-value`);
-    const paint = () => {
-      output.textContent = format(settings[key]);
-      // Chrome has no range progress pseudo-element; the track gradient reads this.
-      const fill = (Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min));
-      input.style.setProperty('--fill', `${fill * 100}%`);
-    };
+/** Shows only the controls for the current effect and styles the preview like the overlay. */
+function renderAdvanced(): void {
+  $('outline-group').hidden = settings.effect !== 'outline' && settings.effect !== 'both';
+  $('shadow-group').hidden = settings.effect !== 'shadow' && settings.effect !== 'both';
+  $('fontCustom').hidden = $<HTMLSelectElement>('fontFamily').value !== 'custom';
+  const s = $('preview').style;
+  s.opacity = String(settings.opacity);
+  s.fontSize = `${20 * settings.fontScale}px`;
+  s.fontFamily = fontStack(settings);
+  s.fontWeight = String(settings.fontWeight);
+  s.textShadow = textShadow(settings);
+}
+
+function bindSlider(key: NumericKey, format: (v: number) => string): void {
+  const input = $<HTMLInputElement>(key);
+  const output = $(`${key}-value`);
+  const paint = () => {
+    output.textContent = format(settings[key]);
+    // Chrome has no range progress pseudo-element; the track gradient reads this.
+    const fill = (Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min));
+    input.style.setProperty('--fill', `${fill * 100}%`);
+  };
+  syncs.push(() => {
     input.value = String(settings[key]);
     paint();
-    input.addEventListener('input', () => {
-      settings[key] = Number(input.value);
+  });
+  input.addEventListener('input', () => {
+    settings[key] = Number(input.value);
+    paint();
+    saveSettings(false);
+  });
+  input.addEventListener('change', () => saveSettings(true));
+}
+
+function bindSegmented(group: HTMLElement): void {
+  const key = group.dataset.key as 'effect' | 'fontWeight' | 'displayArea';
+  const buttons = [...group.querySelectorAll<HTMLButtonElement>('button')];
+  const paint = () => {
+    for (const b of buttons) b.setAttribute('aria-checked', String(b.dataset.value === String(settings[key])));
+  };
+  syncs.push(paint);
+  for (const b of buttons) {
+    b.addEventListener('click', () => {
+      const value = b.dataset.value!;
+      Object.assign(settings, { [key]: typeof DEFAULT_SETTINGS[key] === 'number' ? Number(value) : value });
       paint();
-      saveSettings(settings, false);
+      saveSettings(true);
     });
-    input.addEventListener('change', () => saveSettings(settings, true));
   }
+}
+
+function bindColor(key: (typeof COLORS)[number]): void {
+  const input = $<HTMLInputElement>(key);
+  syncs.push(() => (input.value = settings[key]));
+  input.addEventListener('input', () => {
+    settings[key] = input.value;
+    saveSettings(false);
+  });
+  input.addEventListener('change', () => saveSettings(true));
+}
+
+function bindFont(): void {
+  const select = $<HTMLSelectElement>('fontFamily');
+  const custom = $<HTMLInputElement>('fontCustom');
+  syncs.push(() => {
+    const preset = Object.hasOwn(FONT_PRESETS, settings.fontFamily);
+    select.value = preset ? settings.fontFamily : 'custom';
+    custom.value = preset ? '' : settings.fontFamily;
+  });
+  select.addEventListener('change', () => {
+    if (select.value !== 'custom') {
+      settings.fontFamily = select.value;
+      saveSettings(true);
+    } else if (custom.value.trim()) {
+      settings.fontFamily = custom.value.trim();
+      saveSettings(true);
+    } else {
+      renderAdvanced();
+      custom.focus();
+    }
+  });
+  custom.addEventListener('change', () => {
+    settings.fontFamily = custom.value.trim() || 'system';
+    saveSettings(true);
+  });
+}
+
+function syncControls(): void {
+  for (const sync of syncs) sync();
+  renderAdvanced();
+}
+
+async function initSettings(): Promise<void> {
+  settings = await getSettings();
+  for (const [key, format] of Object.entries(SLIDERS) as [NumericKey, (v: number) => string][]) bindSlider(key, format);
+  for (const group of document.querySelectorAll<HTMLElement>('.segmented')) bindSegmented(group);
+  for (const key of COLORS) bindColor(key);
+  bindFont();
+  $('reset').addEventListener('click', () => {
+    settings = { ...DEFAULT_SETTINGS };
+    syncControls();
+    saveSettings(true);
+  });
+  syncControls();
 }
 
 async function renderLibrary(): Promise<void> {
