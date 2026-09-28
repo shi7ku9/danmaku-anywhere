@@ -375,14 +375,38 @@ h1 {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.15);
 }
 
-.color {
-  width: 32px;
+.hex {
+  width: 76px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--card);
+  font-family: ui-monospace, monospace;
+}
+
+.hex:invalid,
+.hex[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.swatches {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.swatches button {
+  width: 22px;
   height: 22px;
   padding: 0;
   border: 1px solid var(--border);
-  border-radius: 6px;
-  background: none;
+  border-radius: 50%;
   cursor: pointer;
+}
+
+.swatches button[aria-checked='true'] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 .select,

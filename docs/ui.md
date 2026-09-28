@@ -24,8 +24,13 @@ From top to bottom:
    same helpers as the overlay (`src/core/style.ts`). It updates as controls change.
 2. **Effect**: segmented control with Outline / Shadow / Both / None.
 3. **Fine-tuning** for the selected effect; only the relevant rows are shown:
-   - Outline: width slider and color picker.
-   - Shadow: blur slider, offset slider and color picker.
+   - Outline: width slider and color.
+   - Shadow: blur slider, offset slider and color.
+
+   A color is chosen from a row of preset swatches or typed as `#rrggbb` in a
+   hex field; an invalid value is marked and restored when the field loses
+   focus. The native `<input type="color">` is not used: its picker opens a
+   separate window, which takes focus and closes the popup.
 4. **Font**: select with System / Sans-serif / Serif / Monospace / Custom.
    Choosing Custom shows a text input for any CSS `font-family` value.
 5. **Weight**: Normal / Bold toggle.
@@ -35,8 +40,9 @@ From top to bottom:
    and speed, to its default.
 
 Changes apply live to all tabs, like the basic sliders. Sliders save with the
-same debounce as the basic sliders; color pickers, selects, segmented controls
-and the custom font input save on `change`.
+same debounce as the basic sliders; swatches, selects, segmented controls
+and the custom font input save on `change`; the hex field saves while typing
+once the value is valid.
 
 ## Import window
 

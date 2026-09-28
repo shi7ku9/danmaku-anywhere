@@ -73,10 +73,13 @@
             <span class="row"><span>Outline width</span><output id="outlineWidth-value"></output></span>
             <input id="outlineWidth" type="range" min="0.5" max="4" step="0.5" />
           </label>
-          <label class="field row">
-            <span>Outline color</span>
-            <input id="outlineColor" class="color" type="color" />
-          </label>
+          <div class="field">
+            <label class="row">
+              <span>Outline color</span>
+              <input id="outlineColor" class="hex" type="text" maxlength="7" spellcheck="false" autocomplete="off" />
+            </label>
+            <div class="swatches" role="radiogroup" aria-label="Outline color" data-key="outlineColor"></div>
+          </div>
         </div>
 
         <div id="shadow-group">
@@ -88,10 +91,13 @@
             <span class="row"><span>Shadow offset</span><output id="shadowOffset-value"></output></span>
             <input id="shadowOffset" type="range" min="0" max="5" step="0.5" />
           </label>
-          <label class="field row">
-            <span>Shadow color</span>
-            <input id="shadowColor" class="color" type="color" />
-          </label>
+          <div class="field">
+            <label class="row">
+              <span>Shadow color</span>
+              <input id="shadowColor" class="hex" type="text" maxlength="7" spellcheck="false" autocomplete="off" />
+            </label>
+            <div class="swatches" role="radiogroup" aria-label="Shadow color" data-key="shadowColor"></div>
+          </div>
         </div>
 
         <div class="field">

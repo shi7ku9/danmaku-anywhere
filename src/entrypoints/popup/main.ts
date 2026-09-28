@@ -107,6 +107,8 @@ const SLIDERS = {
 } satisfies Partial<Record<NumericKey, (v: number) => string>>;
 
 const COLORS = ['outlineColor', 'shadowColor'] as const;
+const SWATCHES = ['#000000', '#ffffff', '#808080', '#ff3b30', '#ffcc00', '#34c759', '#0a84ff', '#af52de'];
+const HEX = /^#[0-9a-f]{6}$/i;
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let settingsTimer: ReturnType<typeof setTimeout> | undefined;
@@ -176,14 +178,46 @@ function bindSegmented(group: HTMLElement): void {
   }
 }
 
+/**
+ * Swatches plus a hex field instead of `<input type="color">`: the native picker
+ * opens its own window, which takes focus and closes the popup.
+ */
 function bindColor(key: (typeof COLORS)[number]): void {
   const input = $<HTMLInputElement>(key);
-  syncs.push(() => (input.value = settings[key]));
+  const group = document.querySelector<HTMLElement>(`.swatches[data-key="${key}"]`)!;
+  const buttons = SWATCHES.map((color) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.role = 'radio';
+    b.style.background = color;
+    b.setAttribute('aria-label', color);
+    b.addEventListener('click', () => {
+      settings[key] = color;
+      paint();
+      saveSettings(true);
+    });
+    return b;
+  });
+  group.append(...buttons);
+  const paint = () => {
+    input.value = settings[key];
+    input.removeAttribute('aria-invalid');
+    for (const [i, b] of buttons.entries()) b.setAttribute('aria-checked', String(SWATCHES[i] === settings[key]));
+  };
+  syncs.push(paint);
   input.addEventListener('input', () => {
-    settings[key] = input.value;
+    const value = input.value.trim();
+    input.setAttribute('aria-invalid', String(!HEX.test(value)));
+    if (!HEX.test(value)) return;
+    settings[key] = value.toLowerCase();
+    for (const [i, b] of buttons.entries()) b.setAttribute('aria-checked', String(SWATCHES[i] === settings[key]));
     saveSettings(false);
   });
-  input.addEventListener('change', () => saveSettings(true));
+  // Leaving the field with an invalid value restores the saved color.
+  input.addEventListener('change', () => {
+    paint();
+    saveSettings(true);
+  });
 }
 
 function bindFont(): void {
