@@ -5,8 +5,27 @@
 Both clocks expose `now(): number` in seconds. The renderer uses
 `t = clock.now() + entry.offset`.
 
-- **`VideoClock`**: returns `video.currentTime`. Pausing the video pauses the
+- **`VideoClock`**: follows `video.currentTime`. Pausing the video pauses the
   comments automatically, since positions are derived from time alone.
+
+  Reading `currentTime` every frame is not smooth everywhere: Chromium
+  interpolates it on each read, but Firefox updates it in coarser steps, so
+  several frames in a row see the same time and then it jumps, and comments
+  stutter. So while the video plays, the clock runs on its own from
+  `performance.now()` times `playbackRate`, and uses `currentTime` only to stay
+  in sync:
+
+  - When `currentTime` reports a new value, the gap between it and the clock is
+    closed gradually, over about 0.25 s, instead of in one step.
+  - The clock never moves backwards: the renderer treats any backwards step as a
+    seek and clears the screen. A negative gap only slows it down.
+  - It never runs more than 0.3 s ahead of `currentTime`, so a video that stalls
+    while still "playing" holds the comments too.
+  - A gap larger than 0.3 s, or `seeking`, is a seek: the clock jumps to
+    `currentTime`.
+  - Paused, ended or without enough data to play (`readyState` below
+    `HAVE_FUTURE_DATA`): the clock holds its position, unless `currentTime` is
+    more than 0.3 s away (a seek while paused), then it jumps there.
 - **`LoopClock`**: returns `(performance.now() - startedAt) / 1000`, starting when
   danmaku is turned on. After the last comment's time plus the display duration,
   it wraps back to 0. The entry's offset shifts the position within the loop
