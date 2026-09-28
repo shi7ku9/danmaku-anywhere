@@ -40,16 +40,22 @@ export function scrollX(g: StageGeometry, time: number, width: number, t: number
   return g.width - ((t - time) * (g.width + width)) / g.speed;
 }
 
-/** Picks a lane for a comment shown at time t and records it; returns -1 if none fits. */
+/**
+ * Picks a lane for a comment shown at time t and records it; returns -1 if none fits.
+ * Scroll and top comments use only the first `limit` lanes, bottom comments only
+ * the last `limit`, so a reduced display area keeps the middle clear.
+ */
 export function allocateLane(
   lanes: Lanes,
   g: StageGeometry,
   c: { time: number; mode: CommentMode; width: number },
   t: number,
+  limit = lanes.fixed.length,
 ): number {
   const count = lanes.fixed.length;
+  limit = Math.min(limit, count);
   if (c.mode === 'scroll') {
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < limit; i++) {
       const prev = lanes.scroll[i];
       if (!prev || fitsAfter(g, prev, c, t)) {
         lanes.scroll[i] = { time: c.time, width: c.width };
@@ -59,7 +65,7 @@ export function allocateLane(
     return -1;
   }
 
-  for (let k = 0; k < count; k++) {
+  for (let k = 0; k < limit; k++) {
     const i = c.mode === 'top' ? k : count - 1 - k;
     if (lanes.fixed[i]! <= t) {
       lanes.fixed[i] = c.time + FIXED_DURATION;

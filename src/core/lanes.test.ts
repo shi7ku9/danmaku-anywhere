@@ -76,3 +76,32 @@ describe('allocateLane: top and bottom', () => {
     expect(allocateLane(lanes, g, scroll(0), 0)).toBe(0);
   });
 });
+
+describe('allocateLane: limit', () => {
+  const fixed = (mode: 'top' | 'bottom', time: number) => ({ time, mode, width: 100 });
+
+  it('keeps scroll and top comments in the first lanes', () => {
+    const lanes = createLanes(10);
+    expect(allocateLane(lanes, g, scroll(0), 0, 2)).toBe(0);
+    expect(allocateLane(lanes, g, scroll(0), 0, 2)).toBe(1);
+    expect(allocateLane(lanes, g, scroll(0), 0, 2)).toBe(-1);
+    expect(allocateLane(lanes, g, fixed('top', 0), 0, 2)).toBe(0);
+    expect(allocateLane(lanes, g, fixed('top', 0), 0, 2)).toBe(1);
+    expect(allocateLane(lanes, g, fixed('top', 0), 0, 2)).toBe(-1);
+  });
+
+  it('keeps bottom comments in the last lanes', () => {
+    const lanes = createLanes(10);
+    expect(allocateLane(lanes, g, fixed('bottom', 0), 0, 2)).toBe(9);
+    expect(allocateLane(lanes, g, fixed('bottom', 0), 0, 2)).toBe(8);
+    expect(allocateLane(lanes, g, fixed('bottom', 0), 0, 2)).toBe(-1);
+  });
+
+  it('shares lanes between top and bottom where the areas overlap', () => {
+    const lanes = createLanes(4);
+    for (let i = 0; i < 3; i++) allocateLane(lanes, g, fixed('top', 0), 0, 3);
+    // Lanes 0–2 are taken by top comments; bottom can only use lane 3.
+    expect(allocateLane(lanes, g, fixed('bottom', 0), 0, 3)).toBe(3);
+    expect(allocateLane(lanes, g, fixed('bottom', 0), 0, 3)).toBe(-1);
+  });
+});

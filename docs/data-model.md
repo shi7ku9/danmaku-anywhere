@@ -112,7 +112,7 @@ fill with Bilibili files.
 | `shadowColor` | `#rrggbb` | `#000000` | Drop shadow color |
 | `fontFamily` | `system` / `sans` / `serif` / `mono` / any CSS `font-family` | `system` | Font preset key, or a custom font stack |
 | `fontWeight` | 400 / 700 | 700 | Normal or bold |
-| `displayArea` | 0.25 / 0.5 / 0.75 / 1 | 1 | Fraction of the overlay height, from the top, that comments may use |
+| `displayArea` | 0.25 / 0.5 / 0.75 / 1 | 1 | Fraction of the overlay height that comments may use: scroll and top comments from the top, bottom comments from the bottom |
 | `maxActive` | 20 – 300 | 150 | Maximum comments on screen at once |
 
 Settings are global and apply to every site. The outline and shadow fields are

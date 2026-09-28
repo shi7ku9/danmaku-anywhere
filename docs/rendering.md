@@ -39,14 +39,18 @@ Because `speed` is "seconds to cross", comments feel equally fast on any overlay
 ## Lane allocation
 
 Lane height is the line height at the current font scale; the lane count is
-`floor(overlayHeight × displayArea / laneHeight)`. Lanes start at the top of the
-overlay, so a smaller display area keeps comments in the upper part of the video.
+`floor(overlayHeight / laneHeight)`. The display area limits each comment to
+`limit = floor(overlayHeight × displayArea / laneHeight)` lanes: scroll and top
+comments use the first `limit` lanes, bottom comments the last `limit`. A smaller
+display area therefore keeps the middle of the video clear while bottom comments
+stay at the bottom. Where the two ranges overlap (above 50%), top and bottom
+comments share the same lanes and never overlap each other.
 
 - **Scroll**: pick the first lane from the top where the previous comment's tail
   has already entered the overlay (no overlap now) and the new comment will not
   catch up with it before the previous one exits (no overlap later).
 - **Top**: first free lane from the top; occupied for 4 s.
-- **Bottom**: first free lane from the bottom of the display area; occupied for 4 s.
+- **Bottom**: first free lane from the bottom; occupied for 4 s.
 
 Lane allocation is a pure function of lane state, comment and time, and is unit-tested.
 
@@ -84,7 +88,7 @@ The renderer compares new settings with the previous ones:
 
 - **Relayout** (clear the screen; the next frame re-spawns what should be
   visible): `fontScale`, `fontFamily`, `fontWeight` (text width and lane height),
-  `speed` (positions) and `displayArea` (lane count).
+  `speed` (positions) and `displayArea` (lane limit).
 - **Restyle only**: `opacity`, `effect` and the outline and shadow fields update
   the stage style in place.
 - `maxActive` takes effect on the next spawn; comments already on screen stay.

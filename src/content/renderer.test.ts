@@ -139,13 +139,18 @@ describe('Renderer', () => {
   });
 
   it('keeps comments inside the display area', () => {
-    // 500 px at 25 px × 1.25 = 16 lanes; half the area leaves 8.
-    renderer.setSettings({ ...DEFAULT_SETTINGS, displayArea: 0.5 });
-    renderer.setComments([...Array.from({ length: 20 }, () => c(0, 'top')), c(0, 'bottom')]);
+    // 500 px at 25 px × 1.25 = 16 lanes.
+    renderer.setSettings({ ...DEFAULT_SETTINGS, displayArea: 0.25 });
+    renderer.setComments([
+      ...Array.from({ length: 10 }, () => c(0, 'top')),
+      ...Array.from({ length: 10 }, () => c(0, 'bottom')),
+    ]);
     renderer.frame(0, 1000, 500);
+    // A quarter of 16 lanes is 4 at the top and 4 at the bottom.
     expect(renderer.activeCount).toBe(8);
     const tops = [...stage.querySelectorAll<HTMLElement>('.c')].map((e) => parseFloat(e.style.top));
-    expect(Math.max(...tops)).toBeLessThan(250);
+    expect(tops.slice(0, 4).every((y) => y < 125)).toBe(true);
+    expect(tops.slice(4).every((y) => y >= 375)).toBe(true);
   });
 
   it('caps comments on screen at maxActive', () => {

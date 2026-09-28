@@ -98,7 +98,7 @@ export class Renderer {
   private reset(t: number): void {
     for (const a of this.active) this.release(a.el);
     this.active = [];
-    this.lanes = createLanes(Math.max(0, Math.floor((this.height * this.settings.displayArea) / this.laneHeight)));
+    this.lanes = createLanes(Math.max(0, Math.floor(this.height / this.laneHeight)));
     this.cursor = lowerBound(this.comments, t - Math.max(this.settings.speed, FIXED_DURATION));
   }
 
@@ -116,7 +116,8 @@ export class Renderer {
       el.style.transform = '';
       this.stage.append(el);
       const width = this.measure(el);
-      const lane = allocateLane(this.lanes, g, { time: comment.time, mode: comment.mode, width }, t);
+      const limit = Math.floor((this.height * this.settings.displayArea) / this.laneHeight);
+      const lane = allocateLane(this.lanes, g, { time: comment.time, mode: comment.mode, width }, t, limit);
       if (lane < 0) {
         this.release(el);
         continue;

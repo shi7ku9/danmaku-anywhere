@@ -21,7 +21,6 @@ and one click (or the shortcut) brings the comments back.
 
 ## Non-goals
 
-- Restricting the display area (e.g. top half only)
 - Honoring per-comment font sizes from the source file
 - Bilibili advanced/code comments (modes 7 and 8)
 - Keyword filtering / blocking
