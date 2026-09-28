@@ -1,0 +1,3 @@
+allowBuilds:
+  # Its install script only installs the git hooks, which the `prepare` script does.
+  lefthook: false
