@@ -40,13 +40,16 @@ From top to bottom:
    is marked, with the reason shown below the field, and not saved when:
    - it is not valid CSS (`CSS.supports('font-family', …)` fails), since the
      browser would ignore it and keep the old font; or
-   - any family in the list is not installed. Each non-generic family is
+   - any family in the list is not installed. The list is split the way CSS
+     reads it: commas inside quotes or escaped as `\,` stay in the name, and
+     escapes such as `\"` or `\5F3E ` are resolved. Each non-generic family is
      measured on a canvas against two fallbacks (`monospace` and `serif`); if
      the width matches both, the browser fell back and the family is missing.
      Unquoted generic families (`serif`, `sans-serif`, `system-ui`, …) always
      pass; a quoted name such as `"serif"` is a literal font name and is
      checked like any other. A CSS-wide keyword (`inherit`, `initial`, `unset`,
-     `revert`, `revert-layer`) as the whole value is accepted as is.
+     `revert`, `revert-layer`) as the whole value is accepted and rendered
+     with the initial font (see [rendering.md](rendering.md#text-style)).
 
    Clearing the field falls back to System.
 4. **Weight**: Normal / Bold toggle.

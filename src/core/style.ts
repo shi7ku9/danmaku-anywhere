@@ -8,7 +8,20 @@ export const FONT_PRESETS: Record<string, string> = {
   mono: 'monospace',
 };
 
+const CSS_WIDE_KEYWORDS = new Set(['inherit', 'initial', 'unset', 'revert', 'revert-layer']);
+
+/** Whether a value is a CSS-wide keyword, which is valid only as the whole value. */
+export function isCssWideKeyword(value: string): boolean {
+  return CSS_WIDE_KEYWORDS.has(value.trim().toLowerCase());
+}
+
+/**
+ * The CSS font-family for a setting. CSS-wide keywords become `initial`: on the
+ * overlay stage they all end up at the initial font, inherited from the host's
+ * `all: initial`, so the popup preview must not inherit its own font instead.
+ */
 export function fontStack(s: Pick<Settings, 'fontFamily'>): string {
+  if (isCssWideKeyword(s.fontFamily)) return 'initial';
   return Object.hasOwn(FONT_PRESETS, s.fontFamily) ? FONT_PRESETS[s.fontFamily]! : s.fontFamily;
 }
 

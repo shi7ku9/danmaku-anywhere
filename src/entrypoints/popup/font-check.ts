@@ -1,3 +1,5 @@
+import { isCssWideKeyword } from '../../core/style';
+
 /** Generic families and system keywords that always resolve to some font. */
 const GENERIC = new Set([
   'serif',
@@ -15,39 +17,73 @@ const GENERIC = new Set([
   'fangsong',
 ]);
 
-/** CSS-wide keywords; valid only as the whole value and not font names. */
-const GLOBAL = new Set(['inherit', 'initial', 'unset', 'revert', 'revert-layer']);
-
 export interface Family {
   name: string;
   /** A quoted name is always a font name, even `"serif"`. */
   quoted: boolean;
 }
 
-/** Splits a font-family list into family names, removing quotes. */
+const HEX_DIGIT = /[0-9a-f]/i;
+const SPACE = /[ \t\n\r\f]/;
+
+/**
+ * Splits a font-family list into family names, removing quotes and resolving
+ * CSS escapes, so `Foo\, Bar` and `"A\"B"` stay one name each.
+ */
 export function parseFamilies(value: string): Family[] {
+  const chars = [...value];
   const families: Family[] = [];
-  let current = '';
-  let quote = '';
+  // Unquoted names collapse unescaped whitespace; escaped characters are kept as is.
+  let current: { ch: string; escaped: boolean }[] = [];
   let quoted = false;
+  let quote = '';
+
   const push = () => {
-    const name = quoted ? current : current.trim().replace(/\s+/g, ' ');
+    let name: string;
+    if (quoted) {
+      name = current.map((c) => c.ch).join('');
+    } else {
+      name = '';
+      let space = false;
+      for (const c of current) {
+        if (!c.escaped && SPACE.test(c.ch)) {
+          space = name !== '';
+        } else {
+          if (space) name += ' ';
+          space = false;
+          name += c.ch;
+        }
+      }
+    }
     if (name) families.push({ name, quoted });
-    current = '';
+    current = [];
     quoted = false;
   };
-  for (const ch of value) {
-    if (quote) {
+
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i]!;
+    if (ch === '\\') {
+      let hex = '';
+      while (hex.length < 6 && i + 1 < chars.length && HEX_DIGIT.test(chars[i + 1]!)) hex += chars[++i];
+      if (hex) {
+        if (i + 1 < chars.length && SPACE.test(chars[i + 1]!)) i++;
+        const code = parseInt(hex, 16);
+        const valid = code > 0 && code <= 0x10ffff && (code < 0xd800 || code > 0xdfff);
+        current.push({ ch: String.fromCodePoint(valid ? code : 0xfffd), escaped: true });
+      } else if (i + 1 < chars.length) {
+        current.push({ ch: chars[++i]!, escaped: true });
+      }
+    } else if (quote) {
       if (ch === quote) quote = '';
-      else current += ch;
+      else current.push({ ch, escaped: false });
     } else if (ch === '"' || ch === "'") {
       quote = ch;
       quoted = true;
-      current = '';
+      current = [];
     } else if (ch === ',') {
       push();
     } else if (!quoted) {
-      current += ch;
+      current.push({ ch, escaped: false });
     }
   }
   push();
@@ -73,7 +109,7 @@ function canvasMeasure(): Measure {
  * the browser silently falls back for a missing one.
  */
 export function missingFonts(value: string, measure: Measure = canvasMeasure()): string[] {
-  if (GLOBAL.has(value.trim().toLowerCase())) return [];
+  if (isCssWideKeyword(value)) return [];
   const fallbacks = ['monospace', 'serif'];
   const base = fallbacks.map((f) => measure(`72px ${f}`));
   return parseFamilies(value)

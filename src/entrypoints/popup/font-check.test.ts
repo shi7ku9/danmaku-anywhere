@@ -10,6 +10,15 @@ describe('parseFamilies', () => {
     ]);
   });
 
+  it('keeps escaped commas and quotes inside a name', () => {
+    expect(parseFamilies('Foo\\, Bar, serif').map((f) => f.name)).toEqual(['Foo, Bar', 'serif']);
+    expect(parseFamilies(`"A\\"B", 'C\\'D'`).map((f) => f.name)).toEqual(['A"B', "C'D"]);
+  });
+
+  it('resolves hex escapes and keeps escaped spaces', () => {
+    expect(parseFamilies('\\5F3E \\5E55, A\\  B').map((f) => f.name)).toEqual(['弾幕', 'A  B']);
+  });
+
   it('collapses whitespace in unquoted names', () => {
     expect(parseFamilies('Noto   Sans TC ,  mono').map((f) => f.name)).toEqual(['Noto Sans TC', 'mono']);
   });
@@ -32,6 +41,11 @@ describe('missingFonts', () => {
 
   it('treats a quoted generic name as a font name', () => {
     expect(missingFonts('"serif", Installed', measure)).toEqual(['serif']);
+  });
+
+  it('checks a name with an escaped comma as one font', () => {
+    const only: Measure = (font) => (font.includes('"Foo, Bar"') ? 120 : font.endsWith('monospace') ? 100 : 90);
+    expect(missingFonts('Foo\\, Bar, serif', only)).toEqual([]);
   });
 
   it('accepts CSS-wide keywords', () => {

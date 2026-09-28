@@ -84,7 +84,11 @@ popup preview, so the preview always matches what is drawn:
   - `none`: `none`.
 - `fontStack(settings)`: maps the presets to font stacks (`system` →
   `system-ui, sans-serif`, `sans` → `sans-serif`, `serif` → `serif`, `mono` →
-  `monospace`); any other value is used as a custom `font-family` as-is.
+  `monospace`). A CSS-wide keyword (`inherit`, `initial`, `unset`, `revert`,
+  `revert-layer`) becomes `initial`: on the stage every one of them ends up at
+  the initial font, inherited from the host's `all: initial`, and mapping them
+  here keeps the popup preview from inheriting the popup's own font instead.
+  Any other value is used as a custom `font-family` as-is.
 
 ## Settings changes
 

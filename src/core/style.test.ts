@@ -44,6 +44,11 @@ describe('fontStack', () => {
     expect(fontStack({ fontFamily: 'mono' })).toBe('monospace');
   });
 
+  it('resolves CSS-wide keywords to the initial font', () => {
+    expect(fontStack({ fontFamily: 'inherit' })).toBe('initial');
+    expect(fontStack({ fontFamily: ' Unset ' })).toBe('initial');
+  });
+
   it('passes custom values through', () => {
     expect(fontStack({ fontFamily: '"Noto Sans TC", sans-serif' })).toBe('"Noto Sans TC", sans-serif');
   });
