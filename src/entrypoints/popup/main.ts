@@ -273,7 +273,10 @@ function bindFont(): void {
     if (custom.value.trim()) {
       applyCustom();
     } else {
+      // An empty custom font falls back to System; show that instead of an empty field.
       settings.fontFamily = 'system';
+      select.value = 'system';
+      mark('');
       saveSettings(true);
     }
   });

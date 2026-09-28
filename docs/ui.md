@@ -51,7 +51,7 @@ From top to bottom:
      `revert`, `revert-layer`) as the whole value is accepted and rendered
      with the initial font (see [rendering.md](rendering.md#text-style)).
 
-   Clearing the field falls back to System.
+   Clearing the field falls back to System, and the select switches to System.
 4. **Weight**: Normal / Bold toggle.
 5. **Display area**: segmented control with 25% / 50% / 75% / 100%.
 6. **Max on screen**: slider, 20 – 300.
