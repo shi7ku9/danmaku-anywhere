@@ -11,6 +11,8 @@ export interface Comment {
 
 export type TextEffect = 'outline' | 'shadow' | 'both' | 'none';
 
+export type FontPreset = 'system' | 'sans' | 'serif' | 'mono';
+
 export interface Settings {
   opacity: number;
   /** Multiplier on the 25 px base font size. */
@@ -28,10 +30,15 @@ export interface Settings {
   shadowOffset: number;
   /** '#rrggbb' */
   shadowColor: string;
-  /** A preset key from `FONT_PRESETS`, or a custom CSS font-family. */
-  fontFamily: string;
+  /** A preset font, or `custom` to use `customFont`. */
+  fontFamily: FontPreset | 'custom';
+  /** A CSS font-family value; kept while a preset is chosen so switching back restores it. */
+  customFont: string;
   fontWeight: 400 | 700;
-  /** Fraction of the overlay height, from the top, that comments may use. */
+  /**
+   * Fraction of the overlay height that each kind of comment may use: scroll
+   * and top comments from the top, bottom comments from the bottom.
+   */
   displayArea: number;
   /** Maximum comments on screen at once. */
   maxActive: number;
@@ -48,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shadowOffset: 1,
   shadowColor: '#000000',
   fontFamily: 'system',
+  customFont: '',
   fontWeight: 700,
   displayArea: 1,
   maxActive: 150,

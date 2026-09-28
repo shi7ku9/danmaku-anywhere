@@ -1,7 +1,10 @@
-import type { Settings } from './types';
+import type { FontPreset, Settings } from './types';
 
-/** Font stacks for the preset `fontFamily` keys; any other value is a custom font-family. */
-export const FONT_PRESETS: Record<string, string> = {
+/** Comment font size in px at font scale 1. */
+export const BASE_FONT_SIZE = 25;
+
+/** Font stacks for the preset `fontFamily` values. */
+export const FONT_PRESETS: Record<FontPreset, string> = {
   system: 'system-ui, sans-serif',
   sans: 'sans-serif',
   serif: 'serif',
@@ -16,13 +19,19 @@ export function isCssWideKeyword(value: string): boolean {
 }
 
 /**
- * The CSS font-family for a setting. CSS-wide keywords become `initial`: on the
- * overlay stage they all end up at the initial font, inherited from the host's
- * `all: initial`, so the popup preview must not inherit its own font instead.
+ * The CSS font-family for a setting. An empty custom font, or a value from an
+ * unknown preset, falls back to the system font. CSS-wide keywords become
+ * `initial`: on the overlay stage they all end up at the initial font,
+ * inherited from the host's `all: initial`, so the popup preview must not
+ * inherit its own font instead.
  */
-export function fontStack(s: Pick<Settings, 'fontFamily'>): string {
-  if (isCssWideKeyword(s.fontFamily)) return 'initial';
-  return Object.hasOwn(FONT_PRESETS, s.fontFamily) ? FONT_PRESETS[s.fontFamily]! : s.fontFamily;
+export function fontStack(s: Pick<Settings, 'fontFamily' | 'customFont'>): string {
+  if (s.fontFamily === 'custom') {
+    const custom = s.customFont.trim();
+    if (isCssWideKeyword(custom)) return 'initial';
+    if (custom) return custom;
+  }
+  return Object.hasOwn(FONT_PRESETS, s.fontFamily) ? FONT_PRESETS[s.fontFamily as FontPreset] : FONT_PRESETS.system;
 }
 
 type EffectSettings = Pick<

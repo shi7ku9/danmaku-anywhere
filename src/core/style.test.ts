@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { fontStack, textShadow } from './style';
-import { DEFAULT_SETTINGS } from './types';
+import { DEFAULT_SETTINGS, type Settings } from './types';
 
 describe('textShadow', () => {
   it('draws a 1px black outline by default', () => {
@@ -39,17 +39,32 @@ describe('textShadow', () => {
 });
 
 describe('fontStack', () => {
+  const font = (fontFamily: Settings['fontFamily'], customFont = '') => fontStack({ fontFamily, customFont });
+
   it('maps presets to font stacks', () => {
-    expect(fontStack({ fontFamily: 'system' })).toBe('system-ui, sans-serif');
-    expect(fontStack({ fontFamily: 'mono' })).toBe('monospace');
+    expect(font('system')).toBe('system-ui, sans-serif');
+    expect(font('mono')).toBe('monospace');
+  });
+
+  it('ignores the custom font while a preset is chosen', () => {
+    expect(font('serif', '"Noto Sans TC"')).toBe('serif');
+  });
+
+  it('uses the custom font as-is', () => {
+    expect(font('custom', '"Noto Sans TC", sans-serif')).toBe('"Noto Sans TC", sans-serif');
+  });
+
+  it('keeps a custom value that matches a preset name literal', () => {
+    expect(font('custom', 'sans')).toBe('sans');
+  });
+
+  it('falls back to the system font for an empty custom font or unknown preset', () => {
+    expect(font('custom', '  ')).toBe('system-ui, sans-serif');
+    expect(font('Georgia, serif' as Settings['fontFamily'])).toBe('system-ui, sans-serif');
   });
 
   it('resolves CSS-wide keywords to the initial font', () => {
-    expect(fontStack({ fontFamily: 'inherit' })).toBe('initial');
-    expect(fontStack({ fontFamily: ' Unset ' })).toBe('initial');
-  });
-
-  it('passes custom values through', () => {
-    expect(fontStack({ fontFamily: '"Noto Sans TC", sans-serif' })).toBe('"Noto Sans TC", sans-serif');
+    expect(font('custom', 'inherit')).toBe('initial');
+    expect(font('custom', ' Unset ')).toBe('initial');
   });
 });

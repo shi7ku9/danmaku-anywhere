@@ -13,7 +13,9 @@ From top to bottom:
 5. **Settings**: always visible. A preview on top shows one sample comment on a
    dark, video-like strip, styled with the same helpers as the overlay
    (`src/core/style.ts`) and updated as any setting changes, including the
-   advanced ones. Below it, sliders for opacity, font size and speed. Applied
+   advanced ones. The text is drawn at the overlay's true size and the preview
+   is scaled to 80% as a whole, so px-based outlines and shadows keep the same
+   proportions to the text as on the video. Below it, sliders for opacity, font size and speed. Applied
    live to all tabs.
 6. **Advanced style** (collapsible): see [Advanced style](#advanced-style).
 7. **Library** (collapsible): every stored entry with title, URL key, file name
@@ -32,18 +34,24 @@ From top to bottom:
    - Shadow: blur slider, offset slider and color.
 
    A color is chosen from a row of preset swatches or typed as `#rrggbb` in a
-   hex field; an invalid value is marked and restored when the field loses
-   focus. The native `<input type="color">` is not used: its picker opens a
+   hex field. Surrounding spaces and a missing `#` are tolerated, so pasted
+   values like ` #FF8800` or `ff8800` work; the field has no length limit, which
+   would cut a pasted value before it is trimmed. An invalid value is marked and
+   restored when the field loses focus. The native `<input type="color">` is not used: its picker opens a
    separate window, which takes focus and closes the popup.
 3. **Font**: select with System / Sans-serif / Serif / Monospace / Custom.
-   Choosing Custom shows a text input for any CSS `font-family` value. The value
-   is checked as it is typed, with the result shown below the field:
+   Choosing Custom shows a text input for any CSS `font-family` value. The
+   preset and the custom value are stored separately (`fontFamily` and
+   `customFont`), so the custom text is kept when a preset is chosen and comes
+   back with Custom. The value is checked as it is typed, with the result shown
+   below the field:
 
    - **Error** (red, not saved): the value is not valid CSS
      (`CSS.supports('font-family', …)` fails), since the browser would ignore it
      and keep the old font; or nothing in the list would render — every named
      family is missing and there is no generic family to fall back to. That is
-     almost always a typo.
+     almost always a typo. A list that names no font at all (e.g. `""`) gets
+     "No font family given".
    - **Warning** (amber, saved): some families are missing. They are listed as
      "will be skipped". A list exists to fall back past missing fonts, and also
      per glyph (e.g. a Latin font before a CJK one), so this must not block it.

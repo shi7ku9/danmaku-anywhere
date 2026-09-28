@@ -31,6 +31,14 @@ describe('checkFonts', () => {
     return font.endsWith('monospace') ? 100 : 90;
   };
 
+  it('measures the fallbacks once per measure function', () => {
+    const fonts: string[] = [];
+    const counting: Measure = (font) => (fonts.push(font), measure(font));
+    checkFonts('Installed', counting);
+    checkFonts('Nope', counting);
+    expect(fonts.filter((f) => f === '72px serif')).toHaveLength(1);
+  });
+
   it('finds every family that falls back', () => {
     expect(checkFonts('Installed, Nope, "Also Nope", sans-serif', measure)).toEqual({
       missing: ['Nope', 'Also Nope'],
@@ -79,6 +87,10 @@ describe('checkFonts', () => {
         level: 'error',
         message: 'Not installed: Nope, Also Nope',
       });
+    });
+
+    it('errors when the list names no font', () => {
+      expect(fontStatus('""', valid, measure)).toEqual({ level: 'error', message: 'No font family given' });
     });
 
     it('is fine when everything is installed', () => {

@@ -343,6 +343,12 @@ h1 {
   color: #ffffff;
 }
 
+/* Drawn at the overlay's true size, then scaled down as a whole so effects keep their proportions. */
+#preview {
+  display: inline-block;
+  transform: scale(0.8);
+}
+
 .field {
   display: block;
   margin-bottom: 10px;

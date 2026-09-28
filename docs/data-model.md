@@ -110,7 +110,8 @@ fill with Bilibili files.
 | `shadowBlur` | 0 – 10 | 4 | Drop shadow blur radius in px |
 | `shadowOffset` | 0 – 5 | 1 | Drop shadow offset in px, applied to both x and y |
 | `shadowColor` | `#rrggbb` | `#000000` | Drop shadow color |
-| `fontFamily` | `system` / `sans` / `serif` / `mono` / any CSS `font-family` | `system` | Font preset key, or a custom font stack |
+| `fontFamily` | `system` / `sans` / `serif` / `mono` / `custom` | `system` | Font preset, or `custom` to use `customFont` |
+| `customFont` | any CSS `font-family` | `''` | Custom font list; kept while a preset is chosen, so switching back to Custom restores it |
 | `fontWeight` | 400 / 700 | 700 | Normal or bold |
 | `displayArea` | 0.25 / 0.5 / 0.75 / 1 | 1 | Fraction of the overlay height that comments may use: scroll and top comments from the top, bottom comments from the bottom |
 | `maxActive` | 20 – 300 | 150 | Maximum comments on screen at once |

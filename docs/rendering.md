@@ -42,7 +42,8 @@ Lane height is the line height at the current font scale; the lane count is
 `floor(overlayHeight / laneHeight)`. The display area limits each comment to
 `limit = max(1, floor(overlayHeight × displayArea / laneHeight))` lanes (at least
 one, so a small area on a short overlay never hides every comment): scroll and top
-comments use the first `limit` lanes, bottom comments the last `limit`. A smaller
+comments use the first `limit` lanes, bottom comments the last `limit`. Both
+numbers are computed when the lanes are rebuilt, not per comment. A smaller
 display area therefore keeps the middle of the video clear while bottom comments
 stay at the bottom. Where the two ranges overlap (above 50%), top and bottom
 comments share the same lanes and never overlap each other.
@@ -84,18 +85,24 @@ popup preview, so the preview always matches what is drawn:
   - `none`: `none`.
 - `fontStack(settings)`: maps the presets to font stacks (`system` →
   `system-ui, sans-serif`, `sans` → `sans-serif`, `serif` → `serif`, `mono` →
-  `monospace`). A CSS-wide keyword (`inherit`, `initial`, `unset`, `revert`,
-  `revert-layer`) becomes `initial`: on the stage every one of them ends up at
-  the initial font, inherited from the host's `all: initial`, and mapping them
-  here keeps the popup preview from inheriting the popup's own font instead.
-  Any other value is used as a custom `font-family` as-is.
+  `monospace`). For `custom` it uses `customFont` as-is, so a custom value that
+  happens to match a preset name (e.g. `sans`) stays a literal font name. An
+  empty custom font or an unknown `fontFamily` falls back to `system`. A
+  CSS-wide keyword (`inherit`, `initial`, `unset`, `revert`, `revert-layer`)
+  becomes `initial`: on the stage every one of them ends up at the initial
+  font, inherited from the host's `all: initial`, and mapping them here keeps
+  the popup preview from inheriting the popup's own font instead.
+- `BASE_FONT_SIZE` (25 px): the comment font size at scale 1, shared by the
+  renderer and the popup preview.
 
 ## Settings changes
 
 The renderer compares new settings with the previous ones:
 
 - **Relayout** (clear the screen; the next frame re-spawns what should be
-  visible): `fontScale`, `fontFamily`, `fontWeight` (text width and lane height),
+  visible): `fontScale`, the resolved font (`fontStack`, so editing the custom
+  font while a preset is chosen does not redraw), `fontWeight` (text width and
+  lane height),
   `speed` (positions) and `displayArea` (lane limit).
 - **Restyle only**: `opacity`, `effect` and the outline and shadow fields update
   the stage style in place.

@@ -134,7 +134,12 @@ describe('Renderer', () => {
     renderer.setSettings({ ...DEFAULT_SETTINGS, fontFamily: 'serif' });
     expect(renderer.activeCount).toBe(0);
     renderer.frame(1, 1000, 500);
-    renderer.setSettings({ ...DEFAULT_SETTINGS, fontFamily: 'serif', displayArea: 0.5 });
+    renderer.setSettings({ ...DEFAULT_SETTINGS, fontFamily: 'serif', customFont: 'Georgia' });
+    expect(renderer.activeCount).toBe(1); // A preset is chosen, so the custom font is unused.
+    renderer.setSettings({ ...DEFAULT_SETTINGS, fontFamily: 'custom', customFont: 'Georgia' });
+    expect(renderer.activeCount).toBe(0);
+    renderer.frame(1, 1000, 500);
+    renderer.setSettings({ ...DEFAULT_SETTINGS, fontFamily: 'custom', customFont: 'Georgia', displayArea: 0.5 });
     expect(renderer.activeCount).toBe(0);
   });
 

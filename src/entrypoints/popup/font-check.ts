@@ -95,12 +95,31 @@ export type Measure = (font: string) => number;
 
 const SAMPLE = 'mmmmmmmmmmlli WwQq 0123 弾幕漢字あア';
 
+let shared: Measure | undefined;
+
+/** One canvas for every check, created on first use. */
 function canvasMeasure(): Measure {
-  const ctx = document.createElement('canvas').getContext('2d')!;
-  return (font) => {
-    ctx.font = font;
-    return ctx.measureText(SAMPLE).width;
-  };
+  if (!shared) {
+    const ctx = document.createElement('canvas').getContext('2d')!;
+    shared = (font) => {
+      ctx.font = font;
+      return ctx.measureText(SAMPLE).width;
+    };
+  }
+  return shared;
+}
+
+const FALLBACKS = ['monospace', 'serif'];
+/** Fallback widths per measure; installed fonts don't change while the popup is open. */
+const baselines = new WeakMap<Measure, number[]>();
+
+function baseline(measure: Measure): number[] {
+  let widths = baselines.get(measure);
+  if (!widths) {
+    widths = FALLBACKS.map((f) => measure(`72px ${f}`));
+    baselines.set(measure, widths);
+  }
+  return widths;
 }
 
 export interface FontCheck {
@@ -117,8 +136,7 @@ export interface FontCheck {
  */
 export function checkFonts(value: string, measure: Measure = canvasMeasure()): FontCheck {
   if (isCssWideKeyword(value)) return { missing: [], usable: true };
-  const fallbacks = ['monospace', 'serif'];
-  const base = fallbacks.map((f) => measure(`72px ${f}`));
+  const base = baseline(measure);
   const missing: string[] = [];
   let usable = false;
   for (const { name, quoted } of parseFamilies(value)) {
@@ -127,7 +145,7 @@ export function checkFonts(value: string, measure: Measure = canvasMeasure()): F
       continue;
     }
     const font = `"${name.replace(/["\\]/g, '\\$&')}"`;
-    if (fallbacks.every((f, i) => measure(`72px ${font}, ${f}`) === base[i])) missing.push(name);
+    if (FALLBACKS.every((f, i) => measure(`72px ${font}, ${f}`) === base[i])) missing.push(name);
     else usable = true;
   }
   return { missing, usable };
@@ -153,6 +171,8 @@ export function fontStatus(
   // The browser ignores an invalid font-family and keeps the old font.
   if (!supports(value)) return { level: 'error', message: 'Not a valid CSS font-family' };
   const { missing, usable } = checkFonts(value, measure);
+  // E.g. `""`: valid CSS, but it names no font at all.
+  if (!usable && !missing.length) return { level: 'error', message: 'No font family given' };
   if (!usable) return { level: 'error', message: `Not installed: ${missing.join(', ')}` };
   if (missing.length) return { level: 'warning', message: `Not installed, will be skipped: ${missing.join(', ')}` };
   return { level: 'ok', message: '' };

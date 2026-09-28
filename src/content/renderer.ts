@@ -1,13 +1,12 @@
 import { allocateLane, createLanes, FIXED_DURATION, scrollX, type Lanes, type StageGeometry } from '../core/lanes';
-import { fontStack, textShadow } from '../core/style';
+import { BASE_FONT_SIZE, fontStack, textShadow } from '../core/style';
 import { lowerBound } from '../core/timeline';
 import { DEFAULT_SETTINGS, type Comment, type Settings } from '../core/types';
 
-const BASE_FONT_SIZE = 25;
 /** Must match `line-height` in the overlay CSS. */
 const LINE_HEIGHT = 1.25;
 /** Settings that change text size, lanes or positions, so what is on screen must be redrawn. */
-const RELAYOUT_KEYS = ['fontScale', 'speed', 'fontFamily', 'fontWeight', 'displayArea'] as const;
+const RELAYOUT_KEYS = ['fontScale', 'speed', 'fontWeight', 'displayArea'] as const;
 /** A jump larger than this between frames (seconds) is treated as a seek. */
 const SEEK_THRESHOLD = 1;
 
@@ -29,6 +28,8 @@ export class Renderer {
   private comments: readonly Comment[] = [];
   private settings: Settings = DEFAULT_SETTINGS;
   private lanes: Lanes = createLanes(0);
+  /** Lanes each kind of comment may use within the display area. */
+  private laneLimit = 0;
   private active: Active[] = [];
   private readonly pool: HTMLElement[] = [];
   /** Index of the next comment to consider spawning. */
@@ -54,7 +55,9 @@ export class Renderer {
 
   setSettings(settings: Settings): void {
     // Opacity, text effect and the cap apply in place without a redraw.
-    const relayout = RELAYOUT_KEYS.some((key) => settings[key] !== this.settings[key]);
+    // The font is compared by what it resolves to: a custom font edited while a preset is chosen changes nothing.
+    const relayout =
+      RELAYOUT_KEYS.some((key) => settings[key] !== this.settings[key]) || fontStack(settings) !== fontStack(this.settings);
     this.settings = settings;
     const s = this.stage.style;
     s.opacity = String(settings.opacity);
@@ -98,7 +101,10 @@ export class Renderer {
   private reset(t: number): void {
     for (const a of this.active) this.release(a.el);
     this.active = [];
-    this.lanes = createLanes(Math.max(0, Math.floor(this.height / this.laneHeight)));
+    const count = Math.max(0, Math.floor(this.height / this.laneHeight));
+    this.lanes = createLanes(count);
+    // At least one lane, so a small display area on a short overlay never hides everything.
+    this.laneLimit = Math.min(count, Math.max(1, Math.floor((this.height * this.settings.displayArea) / this.laneHeight)));
     this.cursor = lowerBound(this.comments, t - Math.max(this.settings.speed, FIXED_DURATION));
   }
 
@@ -116,9 +122,7 @@ export class Renderer {
       el.style.transform = '';
       this.stage.append(el);
       const width = this.measure(el);
-      // At least one lane, so a small display area on a short overlay never hides everything.
-      const limit = Math.max(1, Math.floor((this.height * this.settings.displayArea) / this.laneHeight));
-      const lane = allocateLane(this.lanes, g, { time: comment.time, mode: comment.mode, width }, t, limit);
+      const lane = allocateLane(this.lanes, g, { time: comment.time, mode: comment.mode, width }, t, this.laneLimit);
       if (lane < 0) {
         this.release(el);
         continue;

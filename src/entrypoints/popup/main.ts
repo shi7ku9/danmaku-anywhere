@@ -1,6 +1,6 @@
 import { browser } from 'wxt/browser';
 import type { Message, Status } from '../../core/messages';
-import { FONT_PRESETS, fontStack, textShadow } from '../../core/style';
+import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
 import { fontStatus, type FontStatus } from './font-check';
@@ -109,7 +109,13 @@ const SLIDERS = {
 
 const COLORS = ['outlineColor', 'shadowColor'] as const;
 const SWATCHES = ['#000000', '#ffffff', '#808080', '#ff3b30', '#ffcc00', '#34c759', '#0a84ff', '#af52de'];
-const HEX = /^#[0-9a-f]{6}$/i;
+const HEX = /^#?([0-9a-f]{6})$/i;
+
+/** A typed or pasted color as '#rrggbb', tolerating spaces and a missing '#'. */
+function parseHex(text: string): string | null {
+  const match = HEX.exec(text.trim());
+  return match ? `#${match[1]!.toLowerCase()}` : null;
+}
 
 let settings: Settings = { ...DEFAULT_SETTINGS };
 let settingsTimer: ReturnType<typeof setTimeout> | undefined;
@@ -135,7 +141,8 @@ function renderAdvanced(): void {
   $('fontCustom').hidden = $<HTMLSelectElement>('fontFamily').value !== 'custom';
   const s = $('preview').style;
   s.opacity = String(settings.opacity);
-  s.fontSize = `${20 * settings.fontScale}px`;
+  // True size, like the overlay, so px-based effects keep their proportions; CSS scales the whole preview down.
+  s.fontSize = `${BASE_FONT_SIZE * settings.fontScale}px`;
   s.fontFamily = fontStack(settings);
   s.fontWeight = String(settings.fontWeight);
   s.textShadow = textShadow(settings);
@@ -236,10 +243,10 @@ function bindColor(key: (typeof COLORS)[number]): void {
   };
   syncs.push(paint);
   input.addEventListener('input', () => {
-    const value = input.value.trim();
-    input.setAttribute('aria-invalid', String(!HEX.test(value)));
-    if (!HEX.test(value)) return;
-    settings[key] = value.toLowerCase();
+    const value = parseHex(input.value);
+    input.setAttribute('aria-invalid', String(!value));
+    if (!value) return;
+    settings[key] = value;
     paintSwatches();
     saveSettings(false);
   });
@@ -266,28 +273,31 @@ function bindFont(): void {
     hint.textContent = status.message;
     hint.hidden = !status.message;
   };
+  const choose = (fontFamily: Settings['fontFamily']) => {
+    settings.fontFamily = fontFamily;
+    select.value = fontFamily;
+    saveSettings(true);
+  };
   syncs.push(() => {
-    const preset = Object.hasOwn(FONT_PRESETS, settings.fontFamily);
-    select.value = preset ? settings.fontFamily : 'custom';
-    custom.value = preset ? '' : settings.fontFamily;
+    const known = Object.hasOwn(FONT_PRESETS, settings.fontFamily) || settings.fontFamily === 'custom';
+    select.value = known ? settings.fontFamily : 'system';
+    custom.value = settings.customFont;
     // A saved font can still have missing families; keep that warning visible.
     mark(check());
   });
-  /** Saves the typed font unless nothing in it can be used; returns whether it was saved. */
+  /** Uses the typed font unless nothing in it can be used; returns whether it was applied. */
   const applyCustom = () => {
     const value = custom.value.trim();
     const status = check();
     mark(status);
     if (!value || status.level === 'error') return false;
-    settings.fontFamily = value;
-    saveSettings(true);
+    settings.customFont = value;
+    choose('custom');
     return true;
   };
   select.addEventListener('change', () => {
     if (select.value !== 'custom') {
-      mark(OK);
-      settings.fontFamily = select.value;
-      saveSettings(true);
+      choose(select.value as Settings['fontFamily']);
     } else if (!applyCustom()) {
       renderAdvanced();
       custom.focus();
@@ -299,10 +309,9 @@ function bindFont(): void {
       applyCustom();
     } else {
       // An empty custom font falls back to System; show that instead of an empty field.
-      settings.fontFamily = 'system';
-      select.value = 'system';
+      settings.customFont = '';
       mark(OK);
-      saveSettings(true);
+      choose('system');
     }
   });
 }
