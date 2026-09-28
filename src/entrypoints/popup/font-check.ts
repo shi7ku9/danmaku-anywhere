@@ -15,26 +15,43 @@ const GENERIC = new Set([
   'fangsong',
 ]);
 
+/** CSS-wide keywords; valid only as the whole value and not font names. */
+const GLOBAL = new Set(['inherit', 'initial', 'unset', 'revert', 'revert-layer']);
+
+export interface Family {
+  name: string;
+  /** A quoted name is always a font name, even `"serif"`. */
+  quoted: boolean;
+}
+
 /** Splits a font-family list into family names, removing quotes. */
-export function parseFamilies(value: string): string[] {
-  const names: string[] = [];
+export function parseFamilies(value: string): Family[] {
+  const families: Family[] = [];
   let current = '';
   let quote = '';
+  let quoted = false;
+  const push = () => {
+    const name = quoted ? current : current.trim().replace(/\s+/g, ' ');
+    if (name) families.push({ name, quoted });
+    current = '';
+    quoted = false;
+  };
   for (const ch of value) {
     if (quote) {
       if (ch === quote) quote = '';
       else current += ch;
     } else if (ch === '"' || ch === "'") {
       quote = ch;
-    } else if (ch === ',') {
-      names.push(current.trim());
+      quoted = true;
       current = '';
-    } else {
+    } else if (ch === ',') {
+      push();
+    } else if (!quoted) {
       current += ch;
     }
   }
-  names.push(current.trim());
-  return names.map((name) => name.replace(/\s+/g, ' ')).filter(Boolean);
+  push();
+  return families;
 }
 
 /** Measures the width of sample text drawn with a CSS font shorthand. */
@@ -56,11 +73,14 @@ function canvasMeasure(): Measure {
  * the browser silently falls back for a missing one.
  */
 export function missingFonts(value: string, measure: Measure = canvasMeasure()): string[] {
+  if (GLOBAL.has(value.trim().toLowerCase())) return [];
   const fallbacks = ['monospace', 'serif'];
   const base = fallbacks.map((f) => measure(`72px ${f}`));
-  return parseFamilies(value).filter((name) => {
-    if (GENERIC.has(name.toLowerCase())) return false;
-    const quoted = `"${name.replace(/["\\]/g, '\\$&')}"`;
-    return fallbacks.every((f, i) => measure(`72px ${quoted}, ${f}`) === base[i]);
-  });
+  return parseFamilies(value)
+    .filter(({ name, quoted }) => {
+      if (!quoted && GENERIC.has(name.toLowerCase())) return false;
+      const font = `"${name.replace(/["\\]/g, '\\$&')}"`;
+      return fallbacks.every((f, i) => measure(`72px ${font}, ${f}`) === base[i]);
+    })
+    .map(({ name }) => name);
 }

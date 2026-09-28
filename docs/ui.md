@@ -43,7 +43,10 @@ From top to bottom:
    - any family in the list is not installed. Each non-generic family is
      measured on a canvas against two fallbacks (`monospace` and `serif`); if
      the width matches both, the browser fell back and the family is missing.
-     Generic families (`serif`, `sans-serif`, `system-ui`, …) always pass.
+     Unquoted generic families (`serif`, `sans-serif`, `system-ui`, …) always
+     pass; a quoted name such as `"serif"` is a literal font name and is
+     checked like any other. A CSS-wide keyword (`inherit`, `initial`, `unset`,
+     `revert`, `revert-layer`) as the whole value is accepted as is.
 
    Clearing the field falls back to System.
 4. **Weight**: Normal / Bold toggle.

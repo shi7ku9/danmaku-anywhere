@@ -3,11 +3,15 @@ import { missingFonts, parseFamilies, type Measure } from './font-check';
 
 describe('parseFamilies', () => {
   it('splits on commas and removes quotes', () => {
-    expect(parseFamilies(`"Noto Sans TC", 'A, B', serif`)).toEqual(['Noto Sans TC', 'A, B', 'serif']);
+    expect(parseFamilies(`"Noto Sans TC", 'A, B', serif`)).toEqual([
+      { name: 'Noto Sans TC', quoted: true },
+      { name: 'A, B', quoted: true },
+      { name: 'serif', quoted: false },
+    ]);
   });
 
   it('collapses whitespace in unquoted names', () => {
-    expect(parseFamilies('Noto   Sans TC ,  mono')).toEqual(['Noto Sans TC', 'mono']);
+    expect(parseFamilies('Noto   Sans TC ,  mono').map((f) => f.name)).toEqual(['Noto Sans TC', 'mono']);
   });
 });
 
@@ -24,5 +28,14 @@ describe('missingFonts', () => {
 
   it('accepts installed and generic families', () => {
     expect(missingFonts('Installed, system-ui, Serif', measure)).toEqual([]);
+  });
+
+  it('treats a quoted generic name as a font name', () => {
+    expect(missingFonts('"serif", Installed', measure)).toEqual(['serif']);
+  });
+
+  it('accepts CSS-wide keywords', () => {
+    expect(missingFonts('inherit', measure)).toEqual([]);
+    expect(missingFonts(' Revert-Layer ', measure)).toEqual([]);
   });
 });
