@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from 'wxt/utils/storage';
-import { DEFAULT_SETTINGS, type Comment } from '../core/types';
+import { type Comment, DEFAULT_SETTINGS } from '../core/types';
 import { deleteEntry, getEntry, getSettings, hasEntry, listEntries, saveEntry, setOffset } from './store';
 
 const comments: Comment[] = [{ time: 1, text: 'a', mode: 'scroll', color: '#ffffff' }];

@@ -1,7 +1,7 @@
-import { allocateLane, createLanes, FIXED_DURATION, scrollX, type Lanes, type StageGeometry } from '../core/lanes';
+import { allocateLane, createLanes, FIXED_DURATION, type Lanes, type StageGeometry, scrollX } from '../core/lanes';
 import { BASE_FONT_SIZE, fontStack, textShadow } from '../core/style';
 import { lowerBound } from '../core/timeline';
-import { DEFAULT_SETTINGS, type Comment, type Settings } from '../core/types';
+import { type Comment, DEFAULT_SETTINGS, type Settings } from '../core/types';
 
 /** Must match `line-height` in the overlay CSS. */
 const LINE_HEIGHT = 1.25;
@@ -57,7 +57,8 @@ export class Renderer {
     // Opacity, text effect and the cap apply in place without a redraw.
     // The font is compared by what it resolves to: a custom font edited while a preset is chosen changes nothing.
     const relayout =
-      RELAYOUT_KEYS.some((key) => settings[key] !== this.settings[key]) || fontStack(settings) !== fontStack(this.settings);
+      RELAYOUT_KEYS.some((key) => settings[key] !== this.settings[key]) ||
+      fontStack(settings) !== fontStack(this.settings);
     this.settings = settings;
     const s = this.stage.style;
     s.opacity = String(settings.opacity);
@@ -104,7 +105,10 @@ export class Renderer {
     const count = Math.max(0, Math.floor(this.height / this.laneHeight));
     this.lanes = createLanes(count);
     // At least one lane, so a small display area on a short overlay never hides everything.
-    this.laneLimit = Math.min(count, Math.max(1, Math.floor((this.height * this.settings.displayArea) / this.laneHeight)));
+    this.laneLimit = Math.min(
+      count,
+      Math.max(1, Math.floor((this.height * this.settings.displayArea) / this.laneHeight)),
+    );
     this.cursor = lowerBound(this.comments, t - Math.max(this.settings.speed, FIXED_DURATION));
   }
 
