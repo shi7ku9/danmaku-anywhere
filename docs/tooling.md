@@ -64,3 +64,16 @@ pushes to `main`:
 
 The manual browser checklist in [testing.md](testing.md) is not automated and
 still has to be run before a change is done.
+
+## Pull request titles
+
+Pull requests are squash-merged (the only merge method enabled on GitHub), and
+the squash commit's subject is the PR title followed by ` (#number)`, with no
+body. The commits on a PR branch can therefore be granular; the title is what
+lands on `main`.
+
+The commit-msg hook never sees that title, so `.github/workflows/pr-title.yml`
+checks it with the same commitlint config. It runs when a pull request is
+opened, reopened, edited (e.g. retitled) or updated, and checks the exact
+subject the squash will produce, `<title> (#<number>)`, so the length limit
+applies to the final message.
