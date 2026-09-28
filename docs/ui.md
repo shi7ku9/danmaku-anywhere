@@ -7,18 +7,30 @@ From top to bottom:
 1. **Current page**: "Loaded: `fileName` (N comments)" or "No danmaku for this page".
 2. **On/off switch** with the current mode ("video sync" or "loop").
    Disabled when the page has no danmaku.
-3. **Import** button: opens the import window for the current tab.
-4. **Offset**: number input (seconds) plus `−1s` / `+1s` buttons. Applied live
+3. **Video** select: which video danmaku follows (see
+   [architecture.md](architecture.md#target-video-selection)). Hidden when the
+   page has no danmaku. Options, in order:
+   - `Auto (Video 2)`: automatic; the parentheses name the video it currently
+     follows, or say `none, loop`.
+   - One per video in document order, e.g.
+     `Video 2 · 1280×720 · Playing · 3:21 / 10:05` (duration `–` when unknown,
+     e.g. a live stream).
+   - `None (loop)`: loop mode even on a page with videos.
+
+   The list is refreshed from the page when the popup opens and again when the
+   select is focused, so sizes, play state and times are current.
+4. **Import** button: opens the import window for the current tab.
+5. **Offset**: number input (seconds) plus `−1s` / `+1s` buttons. Applied live
    and saved to the entry. Hidden when the page has no danmaku.
-5. **Settings**: always visible. A preview on top shows one sample comment on a
+6. **Settings**: always visible. A preview on top shows one sample comment on a
    dark, video-like strip, styled with the same helpers as the overlay
    (`src/core/style.ts`) and updated as any setting changes, including the
    advanced ones. The text is drawn at the overlay's true size and the preview
    is scaled to 80% as a whole, so px-based outlines and shadows keep the same
    proportions to the text as on the video. Below it, sliders for opacity, font size and speed. Applied
    live to all tabs.
-6. **Advanced style** (collapsible): see [Advanced style](#advanced-style).
-7. **Library** (collapsible): every stored entry with title, URL key, file name
+7. **Advanced style** (collapsible): see [Advanced style](#advanced-style).
+8. **Library** (collapsible): every stored entry with title, URL key, file name
    and import date, each with a delete button.
 
 ## Advanced style

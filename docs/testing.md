@@ -28,6 +28,11 @@ Run in both Chrome and Firefox before calling a change done.
 - [ ] Switch to another video in the same tab: danmaku turns off; the new video's
       danmaku (if any) is loaded.
 - [ ] Reload the page: danmaku is loaded but off.
+- [ ] Page with two videos: Auto follows the larger playing one; choosing the
+      other moves the overlay onto it; removing the chosen video from the page
+      returns the select to Auto.
+- [ ] Video page with None chosen: comments loop even while the video plays;
+      Auto brings back video sync. Reloading resets the choice to Auto.
 - [ ] Plain article page: import JSON; comments play from 0 and loop.
 - [ ] Settings sliders apply live to an open tab.
 - [ ] Delete an entry from the library; the page shows "no danmaku".
