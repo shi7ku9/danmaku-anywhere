@@ -15,19 +15,20 @@ Checks that keep the code consistent, and where each one runs.
 ## Biome
 
 [Biome](https://biomejs.dev/) formats and lints TypeScript, JavaScript, JSON and
-CSS with one tool and one config, `biome.json`. It reads `.gitignore`, so build
+CSS with one tool and one config, `biome.jsonc`. It reads `.gitignore`, so build
 output (`.output/`, `.wxt/`) and `node_modules/` are skipped.
 
 The formatter is set to the style the code already used, so adopting it changed
 little:
 
 - 2-space indent, 120-column lines
-- single quotes, semicolons, trailing commas, parentheses around arrow parameters
+- single quotes (also in CSS), semicolons, trailing commas, parentheses around
+  arrow parameters
 
 HTML is not formatted: Biome's HTML support is still partial.
 
 The linter uses the recommended rules. A rule is turned off only when it fights an
-intentional idiom of this codebase, with the reason next to it in `biome.json`.
+intentional idiom of this codebase, with the reason next to it in `biome.jsonc`.
 
 ## Git hooks
 
