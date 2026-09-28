@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, type Comment, type CommentMode } from '../core/types';
+import { textShadow } from '../core/style';
 import { Renderer } from './renderer';
 
 const c = (time: number, mode: CommentMode = 'scroll'): Comment => ({ time, text: `c${time}`, mode, color: '#ffffff' });
@@ -110,5 +111,47 @@ describe('Renderer', () => {
     renderer.setSettings({ ...DEFAULT_SETTINGS, opacity: 0.4 });
     expect(renderer.activeCount).toBe(1);
     expect(stage.style.opacity).toBe('0.4');
+  });
+
+  it('styles the stage with the default font and outline', () => {
+    expect(stage.style.fontWeight).toBe('700');
+    expect(stage.style.fontFamily).toContain('system-ui');
+    expect(stage.style.textShadow).not.toBe('');
+  });
+
+  it('keeps comments on screen when only the text effect changes', () => {
+    renderer.setComments([c(0)]);
+    renderer.frame(1, 1000, 500);
+    const next = { ...DEFAULT_SETTINGS, effect: 'shadow' as const };
+    renderer.setSettings(next);
+    expect(renderer.activeCount).toBe(1);
+    expect(stage.style.textShadow).toBe(textShadow(next));
+  });
+
+  it('redraws when the font or display area changes', () => {
+    renderer.setComments([c(0)]);
+    renderer.frame(1, 1000, 500);
+    renderer.setSettings({ ...DEFAULT_SETTINGS, fontFamily: 'serif' });
+    expect(renderer.activeCount).toBe(0);
+    renderer.frame(1, 1000, 500);
+    renderer.setSettings({ ...DEFAULT_SETTINGS, fontFamily: 'serif', displayArea: 0.5 });
+    expect(renderer.activeCount).toBe(0);
+  });
+
+  it('keeps comments inside the display area', () => {
+    // 500 px at 25 px × 1.25 = 16 lanes; half the area leaves 8.
+    renderer.setSettings({ ...DEFAULT_SETTINGS, displayArea: 0.5 });
+    renderer.setComments([...Array.from({ length: 20 }, () => c(0, 'top')), c(0, 'bottom')]);
+    renderer.frame(0, 1000, 500);
+    expect(renderer.activeCount).toBe(8);
+    const tops = [...stage.querySelectorAll<HTMLElement>('.c')].map((e) => parseFloat(e.style.top));
+    expect(Math.max(...tops)).toBeLessThan(250);
+  });
+
+  it('caps comments on screen at maxActive', () => {
+    renderer.setSettings({ ...DEFAULT_SETTINGS, maxActive: 20 });
+    renderer.setComments(Array.from({ length: 50 }, () => c(0)));
+    renderer.frame(0, 1000, 10_000);
+    expect(renderer.activeCount).toBe(20);
   });
 });

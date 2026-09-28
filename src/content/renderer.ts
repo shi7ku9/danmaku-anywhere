@@ -1,11 +1,13 @@
 import { allocateLane, createLanes, FIXED_DURATION, scrollX, type Lanes, type StageGeometry } from '../core/lanes';
+import { fontStack, textShadow } from '../core/style';
 import { lowerBound } from '../core/timeline';
 import { DEFAULT_SETTINGS, type Comment, type Settings } from '../core/types';
 
 const BASE_FONT_SIZE = 25;
 /** Must match `line-height` in the overlay CSS. */
 const LINE_HEIGHT = 1.25;
-const MAX_ACTIVE = 150;
+/** Settings that change text size, lanes or positions, so what is on screen must be redrawn. */
+const RELAYOUT_KEYS = ['fontScale', 'speed', 'fontFamily', 'fontWeight', 'displayArea'] as const;
 /** A jump larger than this between frames (seconds) is treated as a seek. */
 const SEEK_THRESHOLD = 1;
 
@@ -38,6 +40,7 @@ export class Renderer {
   constructor(stage: HTMLElement, options: RendererOptions = {}) {
     this.stage = stage;
     this.measure = options.measure ?? ((el) => el.offsetWidth);
+    this.setSettings(DEFAULT_SETTINGS);
   }
 
   get activeCount(): number {
@@ -50,11 +53,15 @@ export class Renderer {
   }
 
   setSettings(settings: Settings): void {
-    // Font size and speed change lanes and positions; opacity does not need a redraw.
-    const relayout = settings.fontScale !== this.settings.fontScale || settings.speed !== this.settings.speed;
+    // Opacity, text effect and the cap apply in place without a redraw.
+    const relayout = RELAYOUT_KEYS.some((key) => settings[key] !== this.settings[key]);
     this.settings = settings;
-    this.stage.style.opacity = String(settings.opacity);
-    this.stage.style.fontSize = `${BASE_FONT_SIZE * settings.fontScale}px`;
+    const s = this.stage.style;
+    s.opacity = String(settings.opacity);
+    s.fontSize = `${BASE_FONT_SIZE * settings.fontScale}px`;
+    s.fontFamily = fontStack(settings);
+    s.fontWeight = String(settings.fontWeight);
+    s.textShadow = textShadow(settings);
     if (relayout) this.clear();
   }
 
@@ -91,7 +98,7 @@ export class Renderer {
   private reset(t: number): void {
     for (const a of this.active) this.release(a.el);
     this.active = [];
-    this.lanes = createLanes(Math.max(0, Math.floor(this.height / this.laneHeight)));
+    this.lanes = createLanes(Math.max(0, Math.floor((this.height * this.settings.displayArea) / this.laneHeight)));
     this.cursor = lowerBound(this.comments, t - Math.max(this.settings.speed, FIXED_DURATION));
   }
 
@@ -100,7 +107,7 @@ export class Renderer {
       const comment = this.comments[this.cursor]!;
       if (comment.time > t) break;
       this.cursor++;
-      if (t - comment.time >= this.duration(comment) || this.active.length >= MAX_ACTIVE) continue;
+      if (t - comment.time >= this.duration(comment) || this.active.length >= this.settings.maxActive) continue;
 
       const el = this.pool.pop() ?? document.createElement('div');
       el.textContent = comment.text;

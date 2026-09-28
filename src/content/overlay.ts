@@ -3,8 +3,6 @@ const CSS = `
   position: absolute;
   inset: 0;
   overflow: hidden;
-  font-family: system-ui, sans-serif;
-  font-weight: 700;
   line-height: 1.25;
 }
 .c {
@@ -12,7 +10,6 @@ const CSS = `
   left: 0;
   white-space: pre;
   will-change: transform;
-  text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
 }
 .c.fixed {
   left: 50%;
