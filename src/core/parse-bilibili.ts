@@ -1,4 +1,4 @@
-import { ParseError, type Comment, type CommentMode, type ParseResult } from './types';
+import { type Comment, type CommentMode, ParseError, type ParseResult } from './types';
 
 const MODES: Record<string, CommentMode> = {
   '1': 'scroll',

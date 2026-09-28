@@ -1,6 +1,6 @@
-import { LoopClock, VideoClock, loopPeriod, type Clock } from '../core/clock';
+import { type Clock, LoopClock, loopPeriod, VideoClock } from '../core/clock';
 import type { Message, Status } from '../core/messages';
-import { DEFAULT_SETTINGS, type DanmakuEntry, type Settings } from '../core/types';
+import { type DanmakuEntry, DEFAULT_SETTINGS, type Settings } from '../core/types';
 import { urlKey } from '../core/url-key';
 import { getEntry, getSettings, listEntries } from '../storage/store';
 import { Overlay } from './overlay';
@@ -62,7 +62,7 @@ export class Controller {
     const offset = changes[`offset:${this.key}`]?.newValue;
     if (this.entry && typeof offset === 'number') this.entry.offset = offset;
 
-    const change = changes['index'];
+    const change = changes.index;
     if (!change) return;
     const row = (index: unknown) =>
       JSON.stringify(Array.isArray(index) ? index.find((e: { urlKey?: string }) => e?.urlKey === this.key) : undefined);
@@ -167,7 +167,9 @@ export class Controller {
     const target = chooseTarget(this.target, document.querySelectorAll('video'));
     if (target !== this.target || !this.clock) {
       this.target = target;
-      this.clock = target ? new VideoClock(target) : new LoopClock(loopPeriod(this.entry.comments, this.settings.speed));
+      this.clock = target
+        ? new VideoClock(target)
+        : new LoopClock(loopPeriod(this.entry.comments, this.settings.speed));
       this.overlay.setTarget(target);
       this.renderer.clear();
     }

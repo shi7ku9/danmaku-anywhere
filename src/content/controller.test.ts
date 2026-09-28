@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
-import { DEFAULT_SETTINGS, type Comment } from '../core/types';
+import { type Comment, DEFAULT_SETTINGS } from '../core/types';
 import { saveEntry, setOffset } from '../storage/store';
 import { Controller } from './controller';
 
@@ -142,7 +142,9 @@ describe('Controller', () => {
     await fakeBrowser.storage.local.set({ 'danmaku:https://b.com/': { offset: 0, comments } });
     expect(controller.status().entry).toBeNull();
     await saveEntry({ urlKey: 'https://b.com/', title: 'B', fileName: 'b.xml' }, comments);
-    await controller.onStorageChanged({ index: { oldValue: [], newValue: [{ urlKey: 'https://b.com/', fileName: 'b.xml' }] } });
+    await controller.onStorageChanged({
+      index: { oldValue: [], newValue: [{ urlKey: 'https://b.com/', fileName: 'b.xml' }] },
+    });
     expect(controller.status()).toMatchObject({ entry: { fileName: 'b.xml', count: 2 } });
   });
 

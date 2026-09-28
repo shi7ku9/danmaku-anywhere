@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_SETTINGS, type Comment, type CommentMode } from '../core/types';
 import { textShadow } from '../core/style';
+import { type Comment, type CommentMode, DEFAULT_SETTINGS } from '../core/types';
 import { Renderer } from './renderer';
 
 const c = (time: number, mode: CommentMode = 'scroll'): Comment => ({ time, text: `c${time}`, mode, color: '#ffffff' });

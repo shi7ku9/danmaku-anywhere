@@ -1,4 +1,4 @@
-import { ParseError, type Comment, type CommentMode, type ParseResult } from './types';
+import { type Comment, type CommentMode, ParseError, type ParseResult } from './types';
 
 const MODES = new Set<string>(['scroll', 'top', 'bottom']);
 const COLOR = /^#[0-9a-f]{6}$/i;

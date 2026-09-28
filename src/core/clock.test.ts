@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { LoopClock, VideoClock, loopPeriod } from './clock';
+import { LoopClock, loopPeriod, VideoClock } from './clock';
 
 describe('LoopClock', () => {
   it('starts at 0 and counts seconds', () => {

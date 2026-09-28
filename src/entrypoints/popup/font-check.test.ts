@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkFonts, fontStatus, parseFamilies, type Measure } from './font-check';
+import { checkFonts, fontStatus, type Measure, parseFamilies } from './font-check';
 
 describe('parseFamilies', () => {
   it('splits on commas and removes quotes', () => {
@@ -33,7 +33,10 @@ describe('checkFonts', () => {
 
   it('measures the fallbacks once per measure function', () => {
     const fonts: string[] = [];
-    const counting: Measure = (font) => (fonts.push(font), measure(font));
+    const counting: Measure = (font) => {
+      fonts.push(font);
+      return measure(font);
+    };
     checkFonts('Installed', counting);
     checkFonts('Nope', counting);
     expect(fonts.filter((f) => f === '72px serif')).toHaveLength(1);

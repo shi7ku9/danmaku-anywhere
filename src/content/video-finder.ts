@@ -14,7 +14,7 @@ export function chooseTarget(
   videos: Iterable<HTMLVideoElement>,
   area: (video: HTMLVideoElement) => number = renderedArea,
 ): HTMLVideoElement | null {
-  if (current && current.isConnected && area(current) > 0) return current;
+  if (current?.isConnected && area(current) > 0) return current;
   let best: HTMLVideoElement | null = null;
   let bestArea = 0;
   for (const video of videos) {

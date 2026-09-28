@@ -14,7 +14,9 @@
   --ok-soft: #e7f6ec;
   --danger: #d33a3a;
   --warning: #a86200;
-  font: 13px/1.4 system-ui, sans-serif;
+  font:
+    13px / 1.4 system-ui,
+    sans-serif;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -42,6 +44,7 @@
 
 /* `.row` and friends set display, which would otherwise override the hidden attribute. */
 [hidden] {
+  /* biome-ignore lint/complexity/noImportantStyles: must beat any display set by a class. */
   display: none !important;
 }
 

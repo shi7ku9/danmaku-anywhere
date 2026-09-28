@@ -3,7 +3,7 @@ import type { Message, Status } from '../../core/messages';
 import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
-import { fontStatus, type FontStatus } from './font-check';
+import { type FontStatus, fontStatus } from './font-check';
 import { createOffsetSender, parseOffsetInput } from './offset';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -128,10 +128,12 @@ function saveSettings(final: boolean): void {
   if (!final && settingsTimer !== undefined) return;
   clearTimeout(settingsTimer);
   void settingsItem.setValue({ ...settings });
-  settingsTimer = final ? undefined : setTimeout(() => {
-    settingsTimer = undefined;
-    void settingsItem.setValue({ ...settings });
-  }, 100);
+  settingsTimer = final
+    ? undefined
+    : setTimeout(() => {
+        settingsTimer = undefined;
+        void settingsItem.setValue({ ...settings });
+      }, 100);
 }
 
 /** Shows only the controls for the current effect and styles the preview like the overlay. */
@@ -187,7 +189,15 @@ function handleRadioKeys(buttons: HTMLButtonElement[]): void {
   for (const [i, b] of buttons.entries()) {
     b.addEventListener('keydown', (e) => {
       const n = buttons.length;
-      const next = { ArrowRight: i + 1, ArrowDown: i + 1, ArrowLeft: i - 1, ArrowUp: i - 1, Home: 0, End: n - 1 }[e.key];
+      const targets: Record<string, number> = {
+        ArrowRight: i + 1,
+        ArrowDown: i + 1,
+        ArrowLeft: i - 1,
+        ArrowUp: i - 1,
+        Home: 0,
+        End: n - 1,
+      };
+      const next = targets[e.key];
       if (next === undefined) return;
       e.preventDefault();
       const target = buttons[(next + n) % n]!;

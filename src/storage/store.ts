@@ -1,5 +1,5 @@
 import { storage } from 'wxt/utils/storage';
-import { DEFAULT_SETTINGS, type Comment, type DanmakuEntry, type IndexEntry, type Settings } from '../core/types';
+import { type Comment, type DanmakuEntry, DEFAULT_SETTINGS, type IndexEntry, type Settings } from '../core/types';
 
 export const settingsItem = storage.defineItem<Settings>('local:settings', { fallback: DEFAULT_SETTINGS });
 const indexItem = storage.defineItem<IndexEntry[]>('local:index', { fallback: [] });
