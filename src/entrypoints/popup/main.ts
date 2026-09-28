@@ -4,6 +4,7 @@ import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
 import { type FontStatus, fontStatus } from './font-check';
+import { createLatest } from './latest';
 import { createOffsetSender, parseOffsetInput } from './offset';
 import { autoLabel, videoLabel } from './video-label';
 
@@ -33,8 +34,7 @@ function adopt(next: Status | null): void {
       // Written here, under the library lock shared with import windows; the
       // page's content script picks it up through storage.onChanged.
       if (key) await setOffset(key, value);
-      adopt(await send({ type: 'getStatus' }));
-      renderStatus();
+      await refresh();
     });
   } else if (next?.entry) {
     offset.sync(next.entry.offset);
@@ -42,10 +42,23 @@ function adopt(next: Status | null): void {
   status = next;
 }
 
+const latest = createLatest();
+
+/**
+ * Sends a message and shows the answer, unless a newer request was sent
+ * meanwhile: requests can overlap (e.g. quick video choices, or a refresh on
+ * focus), and a late answer to an older one would show or restore stale state.
+ */
+async function request(message: Message): Promise<void> {
+  const answer = await latest(send(message));
+  if (!answer) return;
+  adopt(answer.value);
+  renderStatus();
+}
+
 /** Re-reads the page before acting, in case the site navigated while the popup was open. */
 async function refresh(): Promise<void> {
-  adopt(await send({ type: 'getStatus' }));
-  renderStatus();
+  await request({ type: 'getStatus' });
 }
 
 async function send(message: Message): Promise<Status | null> {
@@ -403,10 +416,7 @@ async function renderLibrary(): Promise<void> {
     remove.setAttribute('aria-label', `Delete danmaku for ${entry.title || entry.urlKey}`);
     remove.addEventListener('click', async () => {
       await deleteEntry(entry.urlKey);
-      if (entry.urlKey === status?.urlKey) {
-        adopt(await send({ type: 'reload' }));
-        renderStatus();
-      }
+      if (entry.urlKey === status?.urlKey) await request({ type: 'reload' });
       await renderLibrary();
     });
 
@@ -423,8 +433,7 @@ async function main(): Promise<void> {
 
   $('toggle').addEventListener('change', async () => {
     const enabled = $<HTMLInputElement>('toggle').checked;
-    adopt(await send({ type: 'setEnabled', enabled, urlKey: status?.urlKey }));
-    renderStatus();
+    await request({ type: 'setEnabled', enabled, urlKey: status?.urlKey });
   });
 
   $('import').addEventListener('click', async () => {
@@ -441,13 +450,10 @@ async function main(): Promise<void> {
   });
 
   const video = $<HTMLSelectElement>('video');
-  video.addEventListener('change', async () => {
-    const choice = parseChoice(video.value);
-    const chosenFor = status?.urlKey;
-    await refresh();
-    // Apply only to the page it was chosen on; otherwise the refresh shows the new page.
-    if (status?.urlKey === chosenFor) adopt(await send({ type: 'setVideo', choice, urlKey: chosenFor }));
-    renderStatus();
+  video.addEventListener('change', () => {
+    // Sent right away, in order, for the page it was chosen on; the content script ignores
+    // it if the page has changed since, and only the answer to the last request is shown.
+    void request({ type: 'setVideo', choice: parseChoice(video.value), urlKey: status?.urlKey });
   });
   // Sizes, play state and times change while the popup is open; refresh them as the list opens.
   video.addEventListener('focus', () => void refresh());
