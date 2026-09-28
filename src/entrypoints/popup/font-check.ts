@@ -103,20 +103,57 @@ function canvasMeasure(): Measure {
   };
 }
 
+export interface FontCheck {
+  /** Named families that are not installed; the browser skips them. */
+  missing: string[];
+  /** Whether anything in the list renders: an installed family or a generic one. */
+  usable: boolean;
+}
+
 /**
- * Names in a font-family list that are not installed. A family counts as
- * installed when text drawn with it differs in width from both fallbacks;
- * the browser silently falls back for a missing one.
+ * Checks each family in a font-family list. A family counts as installed when
+ * text drawn with it differs in width from both fallbacks; the browser
+ * silently falls back for a missing one.
  */
-export function missingFonts(value: string, measure: Measure = canvasMeasure()): string[] {
-  if (isCssWideKeyword(value)) return [];
+export function checkFonts(value: string, measure: Measure = canvasMeasure()): FontCheck {
+  if (isCssWideKeyword(value)) return { missing: [], usable: true };
   const fallbacks = ['monospace', 'serif'];
   const base = fallbacks.map((f) => measure(`72px ${f}`));
-  return parseFamilies(value)
-    .filter(({ name, quoted }) => {
-      if (!quoted && GENERIC.has(name.toLowerCase())) return false;
-      const font = `"${name.replace(/["\\]/g, '\\$&')}"`;
-      return fallbacks.every((f, i) => measure(`72px ${font}, ${f}`) === base[i]);
-    })
-    .map(({ name }) => name);
+  const missing: string[] = [];
+  let usable = false;
+  for (const { name, quoted } of parseFamilies(value)) {
+    if (!quoted && GENERIC.has(name.toLowerCase())) {
+      usable = true;
+      continue;
+    }
+    const font = `"${name.replace(/["\\]/g, '\\$&')}"`;
+    if (fallbacks.every((f, i) => measure(`72px ${font}, ${f}`) === base[i])) missing.push(name);
+    else usable = true;
+  }
+  return { missing, usable };
+}
+
+export interface FontStatus {
+  /** `error` blocks saving; `warning` saves but tells the user. */
+  level: 'ok' | 'warning' | 'error';
+  message: string;
+}
+
+/**
+ * Whether a custom font-family can be saved. Missing families are only a
+ * warning, since a list exists to fall back past them (and per glyph, e.g. a
+ * Latin font before a CJK one); it is an error only when nothing in the list
+ * would render, which almost always means a typo.
+ */
+export function fontStatus(
+  value: string,
+  supports: (value: string) => boolean = (v) => CSS.supports('font-family', v),
+  measure?: Measure,
+): FontStatus {
+  // The browser ignores an invalid font-family and keeps the old font.
+  if (!supports(value)) return { level: 'error', message: 'Not a valid CSS font-family' };
+  const { missing, usable } = checkFonts(value, measure);
+  if (!usable) return { level: 'error', message: `Not installed: ${missing.join(', ')}` };
+  if (missing.length) return { level: 'warning', message: `Not installed, will be skipped: ${missing.join(', ')}` };
+  return { level: 'ok', message: '' };
 }

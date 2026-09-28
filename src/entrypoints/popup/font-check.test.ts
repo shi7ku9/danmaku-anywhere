@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { missingFonts, parseFamilies, type Measure } from './font-check';
+import { checkFonts, fontStatus, parseFamilies, type Measure } from './font-check';
 
 describe('parseFamilies', () => {
   it('splits on commas and removes quotes', () => {
@@ -24,32 +24,65 @@ describe('parseFamilies', () => {
   });
 });
 
-describe('missingFonts', () => {
-  // Pretends only "Installed" exists: it changes the width, anything else falls back.
+describe('checkFonts', () => {
+  // Pretends only "Installed" and "Foo, Bar" exist: they change the width, anything else falls back.
   const measure: Measure = (font) => {
-    const fallback = font.endsWith('monospace') ? 100 : 90;
-    return font.includes('"Installed"') ? 120 : fallback;
+    if (font.includes('"Installed"') || font.includes('"Foo, Bar"')) return 120;
+    return font.endsWith('monospace') ? 100 : 90;
   };
 
   it('finds every family that falls back', () => {
-    expect(missingFonts('Installed, Nope, "Also Nope", sans-serif', measure)).toEqual(['Nope', 'Also Nope']);
+    expect(checkFonts('Installed, Nope, "Also Nope", sans-serif', measure)).toEqual({
+      missing: ['Nope', 'Also Nope'],
+      usable: true,
+    });
   });
 
   it('accepts installed and generic families', () => {
-    expect(missingFonts('Installed, system-ui, Serif', measure)).toEqual([]);
+    expect(checkFonts('Installed, system-ui, Serif', measure)).toEqual({ missing: [], usable: true });
+  });
+
+  it('is unusable when nothing in the list renders', () => {
+    expect(checkFonts('Nope, "Also Nope"', measure)).toEqual({ missing: ['Nope', 'Also Nope'], usable: false });
   });
 
   it('treats a quoted generic name as a font name', () => {
-    expect(missingFonts('"serif", Installed', measure)).toEqual(['serif']);
+    expect(checkFonts('"serif", Installed', measure).missing).toEqual(['serif']);
   });
 
   it('checks a name with an escaped comma as one font', () => {
-    const only: Measure = (font) => (font.includes('"Foo, Bar"') ? 120 : font.endsWith('monospace') ? 100 : 90);
-    expect(missingFonts('Foo\\, Bar, serif', only)).toEqual([]);
+    expect(checkFonts('Foo\\, Bar, serif', measure)).toEqual({ missing: [], usable: true });
   });
 
   it('accepts CSS-wide keywords', () => {
-    expect(missingFonts('inherit', measure)).toEqual([]);
-    expect(missingFonts(' Revert-Layer ', measure)).toEqual([]);
+    expect(checkFonts('inherit', measure).usable).toBe(true);
+    expect(checkFonts(' Revert-Layer ', measure).missing).toEqual([]);
+  });
+
+  describe('fontStatus', () => {
+    const valid = () => true;
+
+    it('errors on invalid CSS', () => {
+      expect(fontStatus('Foo,', () => false, measure).level).toBe('error');
+    });
+
+    it('only warns when some families are missing', () => {
+      expect(fontStatus('Nope, Installed', valid, measure)).toEqual({
+        level: 'warning',
+        message: 'Not installed, will be skipped: Nope',
+      });
+      expect(fontStatus('Nope, sans-serif', valid, measure).level).toBe('warning');
+    });
+
+    it('errors when nothing in the list renders', () => {
+      expect(fontStatus('Nope, "Also Nope"', valid, measure)).toEqual({
+        level: 'error',
+        message: 'Not installed: Nope, Also Nope',
+      });
+    });
+
+    it('is fine when everything is installed', () => {
+      expect(fontStatus('Installed, serif', valid, measure).level).toBe('ok');
+    });
   });
 });

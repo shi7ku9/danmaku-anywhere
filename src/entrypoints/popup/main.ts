@@ -3,7 +3,7 @@ import type { Message, Status } from '../../core/messages';
 import { FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
 import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
-import { missingFonts } from './font-check';
+import { fontStatus, type FontStatus } from './font-check';
 import { createOffsetSender, parseOffsetInput } from './offset';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -250,43 +250,42 @@ function bindColor(key: (typeof COLORS)[number]): void {
   });
 }
 
-/** Why a custom font-family can't be used, or '' if it can. */
-function fontProblem(value: string): string {
-  // The browser ignores an invalid font-family and keeps the old font, and
-  // silently falls back for a font that isn't installed.
-  if (!CSS.supports('font-family', value)) return 'Not a valid CSS font-family';
-  const missing = missingFonts(value);
-  return missing.length ? `Not installed: ${missing.join(', ')}` : '';
-}
-
 function bindFont(): void {
   const select = $<HTMLSelectElement>('fontFamily');
   const custom = $<HTMLInputElement>('fontCustom');
   const hint = $('fontHint');
-  const mark = (problem: string) => {
-    custom.setAttribute('aria-invalid', String(!!problem));
-    hint.textContent = problem;
-    hint.hidden = !problem;
+  const OK: FontStatus = { level: 'ok', message: '' };
+  const check = () => {
+    const value = custom.value.trim();
+    return value ? fontStatus(value) : OK;
+  };
+  const mark = (status: FontStatus) => {
+    custom.setAttribute('aria-invalid', String(status.level === 'error'));
+    custom.classList.toggle('warning', status.level === 'warning');
+    hint.classList.toggle('warning', status.level === 'warning');
+    hint.textContent = status.message;
+    hint.hidden = !status.message;
   };
   syncs.push(() => {
     const preset = Object.hasOwn(FONT_PRESETS, settings.fontFamily);
     select.value = preset ? settings.fontFamily : 'custom';
     custom.value = preset ? '' : settings.fontFamily;
-    mark('');
+    // A saved font can still have missing families; keep that warning visible.
+    mark(check());
   });
-  /** Saves the typed font if it can be used; returns whether it was saved. */
+  /** Saves the typed font unless nothing in it can be used; returns whether it was saved. */
   const applyCustom = () => {
     const value = custom.value.trim();
-    const problem = value ? fontProblem(value) : '';
-    mark(problem);
-    if (!value || problem) return false;
+    const status = check();
+    mark(status);
+    if (!value || status.level === 'error') return false;
     settings.fontFamily = value;
     saveSettings(true);
     return true;
   };
   select.addEventListener('change', () => {
     if (select.value !== 'custom') {
-      mark('');
+      mark(OK);
       settings.fontFamily = select.value;
       saveSettings(true);
     } else if (!applyCustom()) {
@@ -294,10 +293,7 @@ function bindFont(): void {
       custom.focus();
     }
   });
-  custom.addEventListener('input', () => {
-    const value = custom.value.trim();
-    mark(value ? fontProblem(value) : '');
-  });
+  custom.addEventListener('input', () => mark(check()));
   custom.addEventListener('change', () => {
     if (custom.value.trim()) {
       applyCustom();
@@ -305,7 +301,7 @@ function bindFont(): void {
       // An empty custom font falls back to System; show that instead of an empty field.
       settings.fontFamily = 'system';
       select.value = 'system';
-      mark('');
+      mark(OK);
       saveSettings(true);
     }
   });

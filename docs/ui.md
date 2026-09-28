@@ -37,19 +37,28 @@ From top to bottom:
    separate window, which takes focus and closes the popup.
 3. **Font**: select with System / Sans-serif / Serif / Monospace / Custom.
    Choosing Custom shows a text input for any CSS `font-family` value. The value
-   is marked, with the reason shown below the field, and not saved when:
-   - it is not valid CSS (`CSS.supports('font-family', …)` fails), since the
-     browser would ignore it and keep the old font; or
-   - any family in the list is not installed. The list is split the way CSS
-     reads it: commas inside quotes or escaped as `\,` stay in the name, and
-     escapes such as `\"` or `\5F3E ` are resolved. Each non-generic family is
-     measured on a canvas against two fallbacks (`monospace` and `serif`); if
-     the width matches both, the browser fell back and the family is missing.
-     Unquoted generic families (`serif`, `sans-serif`, `system-ui`, …) always
-     pass; a quoted name such as `"serif"` is a literal font name and is
-     checked like any other. A CSS-wide keyword (`inherit`, `initial`, `unset`,
-     `revert`, `revert-layer`) as the whole value is accepted and rendered
-     with the initial font (see [rendering.md](rendering.md#text-style)).
+   is checked as it is typed, with the result shown below the field:
+
+   - **Error** (red, not saved): the value is not valid CSS
+     (`CSS.supports('font-family', …)` fails), since the browser would ignore it
+     and keep the old font; or nothing in the list would render — every named
+     family is missing and there is no generic family to fall back to. That is
+     almost always a typo.
+   - **Warning** (amber, saved): some families are missing. They are listed as
+     "will be skipped". A list exists to fall back past missing fonts, and also
+     per glyph (e.g. a Latin font before a CJK one), so this must not block it.
+     The warning is shown again when the popup reopens.
+
+   How families are checked: the list is split the way CSS reads it (commas
+   inside quotes or escaped as `\,` stay in the name, and escapes such as `\"`
+   or `\5F3E ` are resolved). Each non-generic family is measured on a canvas
+   against two fallbacks (`monospace` and `serif`); if the width matches both,
+   the browser fell back and the family is missing. Unquoted generic families
+   (`serif`, `sans-serif`, `system-ui`, …) always render; a quoted name such as
+   `"serif"` is a literal font name and is checked like any other. A CSS-wide
+   keyword (`inherit`, `initial`, `unset`, `revert`, `revert-layer`) as the
+   whole value is accepted and rendered with the initial font (see
+   [rendering.md](rendering.md#text-style)).
 
    Clearing the field falls back to System, and the select switches to System.
 4. **Weight**: Normal / Bold toggle.

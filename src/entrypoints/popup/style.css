@@ -13,6 +13,7 @@
   --ok: #1f8a4c;
   --ok-soft: #e7f6ec;
   --danger: #d33a3a;
+  --warning: #a86200;
   font: 13px/1.4 system-ui, sans-serif;
 }
 
@@ -31,6 +32,7 @@
     --ok: #5fcf8f;
     --ok-soft: #1d3327;
     --danger: #ff6b6b;
+    --warning: #f0b35a;
   }
 }
 
@@ -427,6 +429,14 @@ h1 {
   margin-top: 4px;
   color: var(--danger);
   font-size: 11px;
+}
+
+.hint.warning {
+  color: var(--warning);
+}
+
+.text.warning {
+  border-color: var(--warning);
 }
 
 .advanced .button {
