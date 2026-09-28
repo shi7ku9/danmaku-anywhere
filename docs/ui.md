@@ -10,20 +10,24 @@ From top to bottom:
 3. **Import** button: opens the import window for the current tab.
 4. **Offset**: number input (seconds) plus `−1s` / `+1s` buttons. Applied live
    and saved to the entry. Hidden when the page has no danmaku.
-5. **Settings**: sliders for opacity, font size and speed. Applied live to all tabs.
+5. **Settings**: always visible. A preview on top shows one sample comment on a
+   dark, video-like strip, styled with the same helpers as the overlay
+   (`src/core/style.ts`) and updated as any setting changes, including the
+   advanced ones. Below it, sliders for opacity, font size and speed. Applied
+   live to all tabs.
 6. **Advanced style** (collapsible): see [Advanced style](#advanced-style).
 7. **Library** (collapsible): every stored entry with title, URL key, file name
    and import date, each with a delete button.
 
 ## Advanced style
 
-A collapsed `<details>` section below the basic sliders, styled like the library.
+A collapsed `<details>` section below the basic settings, styled like the library.
+The preview stays in the basic settings card, so it is visible while this
+section is collapsed.
 From top to bottom:
 
-1. **Preview**: one sample comment on a dark, video-like strip, styled with the
-   same helpers as the overlay (`src/core/style.ts`). It updates as controls change.
-2. **Effect**: segmented control with Outline / Shadow / Both / None.
-3. **Fine-tuning** for the selected effect; only the relevant rows are shown:
+1. **Effect**: segmented control with Outline / Shadow / Both / None.
+2. **Fine-tuning** for the selected effect; only the relevant rows are shown:
    - Outline: width slider and color.
    - Shadow: blur slider, offset slider and color.
 
@@ -31,12 +35,12 @@ From top to bottom:
    hex field; an invalid value is marked and restored when the field loses
    focus. The native `<input type="color">` is not used: its picker opens a
    separate window, which takes focus and closes the popup.
-4. **Font**: select with System / Sans-serif / Serif / Monospace / Custom.
+3. **Font**: select with System / Sans-serif / Serif / Monospace / Custom.
    Choosing Custom shows a text input for any CSS `font-family` value.
-5. **Weight**: Normal / Bold toggle.
-6. **Display area**: segmented control with 25% / 50% / 75% / 100%.
-7. **Max on screen**: slider, 20 – 300.
-8. **Reset to defaults**: restores every setting, including opacity, font size
+4. **Weight**: Normal / Bold toggle.
+5. **Display area**: segmented control with 25% / 50% / 75% / 100%.
+6. **Max on screen**: slider, 20 – 300.
+7. **Reset to defaults**: restores every setting, including opacity, font size
    and speed, to its default.
 
 Changes apply live to all tabs, like the basic sliders. Sliders save with the
