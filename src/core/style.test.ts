@@ -4,15 +4,21 @@ import { DEFAULT_SETTINGS } from './types';
 
 describe('textShadow', () => {
   it('draws a 1px black outline by default', () => {
-    const value = textShadow(DEFAULT_SETTINGS);
-    expect(value.split(', ')).toHaveLength(8);
-    expect(value).toContain('-1px -1px 0 #000000');
-    expect(value).toContain('1px 1px 0 #000000');
+    const parts = textShadow(DEFAULT_SETTINGS).split(', ');
+    expect(parts).toHaveLength(8);
+    expect(parts).toContain('1px 0px 0 #000000');
+    expect(parts).toContain('-1px 0px 0 #000000');
+    expect(parts).toContain('0px 1px 0 #000000');
   });
 
-  it('scales the outline width and color', () => {
-    const value = textShadow({ ...DEFAULT_SETTINGS, outlineWidth: 2.5, outlineColor: '#ff0000' });
-    expect(value).toContain('-2.5px 0px 0 #ff0000');
+  it('keeps every outline copy on a circle about 1px apart', () => {
+    const parts = textShadow({ ...DEFAULT_SETTINGS, outlineWidth: 4, outlineColor: '#ff0000' }).split(', ');
+    expect(parts.length).toBe(Math.ceil(2 * Math.PI * 4));
+    for (const part of parts) {
+      const [x, y] = part.split(' ').map(parseFloat) as [number, number];
+      expect(Math.hypot(x, y)).toBeCloseTo(4, 1);
+      expect(part.endsWith('#ff0000')).toBe(true);
+    }
   });
 
   it('draws a blurred drop shadow', () => {

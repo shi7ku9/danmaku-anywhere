@@ -72,8 +72,11 @@ Lane allocation is a pure function of lane state, comment and time, and is unit-
 popup preview, so the preview always matches what is drawn:
 
 - `textShadow(settings)`: the `text-shadow` value for the current `effect`.
-  - `outline`: eight copies of the text offset by `outlineWidth` in each
-    direction, with no blur, in `outlineColor`.
+  - `outline`: copies of the text, with no blur, in `outlineColor`, offset
+    evenly around a circle of radius `outlineWidth`: `max(8, ⌈2π × width⌉)`
+    copies, about 1 px apart, so the outline follows the glyphs with round
+    corners. Eight fixed directions would square it off at larger widths, and
+    `-webkit-text-stroke` grows spikes at sharp glyph corners.
   - `shadow`: one copy offset by `shadowOffset` down and right, blurred by
     `shadowBlur`, in `shadowColor`.
   - `both`: the outline followed by the shadow.
