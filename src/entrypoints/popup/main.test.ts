@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import type { Message, Status } from '../../core/messages';
-import { getEntry, saveEntry } from '../../storage/store';
+import { addDanmaku, getBindings } from '../../storage/store';
 import html from './index.html?raw';
 
 const A = 'https://a.com/watch?v=a';
@@ -11,7 +11,7 @@ const B = 'https://a.com/watch?v=b';
 const statusFor = (urlKey: string): Status => ({
   urlKey,
   title: urlKey,
-  entry: { fileName: `${urlKey}.xml`, count: 1, offset: 0 },
+  entry: { id: urlKey, name: `${urlKey}.xml`, count: 1, offset: 0 },
   enabled: true,
   mode: 'loop',
   videos: [],
@@ -33,8 +33,8 @@ beforeEach(async () => {
   page = A;
   holding = false;
   held = [];
-  await saveEntry({ urlKey: A, title: 'A', fileName: 'a.xml' }, []);
-  await saveEntry({ urlKey: B, title: 'B', fileName: 'b.xml' }, []);
+  await addDanmaku({ fileName: 'a.xml' }, [], { urlKey: A, title: 'A' });
+  await addDanmaku({ fileName: 'b.xml' }, [], { urlKey: B, title: 'B' });
   // The overloaded browser APIs don't fit vi.spyOn's types; the fakes return what the popup reads.
   vi.spyOn(browser.tabs, 'query').mockResolvedValue([{ id: 1, url: A }] as never);
   vi.spyOn(browser.tabs, 'sendMessage').mockImplementation(((_tabId: number, _message: Message) => {
@@ -65,8 +65,8 @@ describe('popup', () => {
     holding = false;
     held[1]!();
 
-    await vi.waitFor(async () => expect((await getEntry(B))?.offset).toBe(2));
-    expect((await getEntry(A))?.offset).toBe(0);
+    await vi.waitFor(async () => expect((await getBindings())[B]?.offset).toBe(2));
+    expect((await getBindings())[A]?.offset).toBe(0);
     expect($('page').textContent).toBe(`${B}.xml`);
   });
 

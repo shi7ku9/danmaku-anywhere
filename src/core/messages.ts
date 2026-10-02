@@ -20,7 +20,8 @@ export interface VideoInfo {
 export interface Status {
   urlKey: string;
   title: string;
-  entry: { fileName: string; count: number; offset: number } | null;
+  /** The danmaku bound to the page; `id` is its library id. */
+  entry: { id: string; name: string; count: number; offset: number } | null;
   enabled: boolean;
   mode: Mode;
   /** Videos with a non-zero size, in document order. */

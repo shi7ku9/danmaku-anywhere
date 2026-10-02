@@ -61,23 +61,6 @@ export const DEFAULT_SETTINGS: Settings = {
   maxActive: 150,
 };
 
-/** Summary of a stored entry, listed in the popup without loading comments. */
-export interface IndexEntry {
-  urlKey: string;
-  title: string;
-  fileName: string;
-  count: number;
-  /** Epoch milliseconds. */
-  importedAt: number;
-}
-
-export interface DanmakuEntry {
-  /** Seconds added to the clock before lookup; may be negative. */
-  offset: number;
-  /** Sorted by time. */
-  comments: Comment[];
-}
-
 /** A saved danmaku in the library; its comments are stored apart, under `danmaku:<id>`. */
 export interface LibraryEntry {
   id: string;

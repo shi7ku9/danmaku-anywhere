@@ -2,7 +2,7 @@ import { browser } from 'wxt/browser';
 import type { Message, Status, VideoChoice } from '../../core/messages';
 import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
-import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
+import { deleteDanmaku, getSettings, listLibrary, setPageOffset, settingsItem } from '../../storage/store';
 import { type FontStatus, fontStatus } from './font-check';
 import { createLatest } from './latest';
 import { createOffsetSender, parseOffsetInput } from './offset';
@@ -33,7 +33,7 @@ function adopt(next: Status | null): void {
     offset = createOffsetSender(next?.entry?.offset ?? 0, async (value) => {
       // Written here, under the library lock shared with import windows; the
       // page's content script picks it up through storage.onChanged.
-      if (key) await setOffset(key, value);
+      if (key) await setPageOffset(key, value);
       await refresh();
     });
   } else if (next?.entry) {
@@ -86,8 +86,8 @@ function renderStatus(): void {
     $('page').textContent = isRestricted(tabUrl) ? 'Not available on this page' : 'Reload the page to use danmaku';
     $('page-meta').textContent = '';
   } else if (entry) {
-    $('page').textContent = entry.fileName;
-    $('page').title = entry.fileName;
+    $('page').textContent = entry.name;
+    $('page').title = entry.name;
     $('page-meta').textContent = `${entry.count} comments`;
   } else {
     $('page').textContent = 'No danmaku for this page';
@@ -397,7 +397,7 @@ async function initSettings(): Promise<void> {
 }
 
 async function renderLibrary(): Promise<void> {
-  const entries = (await listEntries()).sort((a, b) => b.importedAt - a.importedAt);
+  const entries = (await listLibrary()).sort((a, b) => b.addedAt - a.addedAt);
   $('library-count').textContent = String(entries.length);
   const list = $('library');
   list.replaceChildren();
@@ -406,25 +406,21 @@ async function renderLibrary(): Promise<void> {
     const info = document.createElement('div');
     info.className = 'info';
     const title = document.createElement('strong');
-    title.textContent = entry.title || entry.urlKey;
-    const key = document.createElement('span');
-    key.className = 'muted';
-    key.textContent = entry.urlKey;
-    key.title = entry.urlKey;
+    title.textContent = entry.name;
     const file = document.createElement('span');
     file.className = 'muted';
-    file.textContent = `${entry.fileName} · ${new Date(entry.importedAt).toLocaleDateString()}`;
-    info.append(title, key, file);
+    file.textContent = `${entry.fileName} · ${entry.count} comments · ${new Date(entry.addedAt).toLocaleDateString()}`;
+    info.append(title, file);
 
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'delete';
     remove.textContent = '✕';
     remove.title = 'Delete';
-    remove.setAttribute('aria-label', `Delete danmaku for ${entry.title || entry.urlKey}`);
+    remove.setAttribute('aria-label', `Delete ${entry.name}`);
     remove.addEventListener('click', async () => {
-      await deleteEntry(entry.urlKey);
-      if (entry.urlKey === status?.urlKey) await request({ type: 'reload' });
+      await deleteDanmaku(entry.id);
+      if (entry.id === status?.entry?.id) await request({ type: 'reload' });
       await renderLibrary();
     });
 

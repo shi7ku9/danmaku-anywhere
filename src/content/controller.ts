@@ -1,8 +1,8 @@
 import { type Clock, LoopClock, loopPeriod, VideoClock } from '../core/clock';
 import type { Message, Status, VideoChoice } from '../core/messages';
-import { type DanmakuEntry, DEFAULT_SETTINGS, type Settings } from '../core/types';
+import { type Bindings, DEFAULT_SETTINGS, type LibraryEntry, type PageDanmaku, type Settings } from '../core/types';
 import { urlKey } from '../core/url-key';
-import { getEntry, getSettings, listEntries } from '../storage/store';
+import { getPageDanmaku, getSettings } from '../storage/store';
 import { Overlay } from './overlay';
 import { Renderer } from './renderer';
 import { listVideos, resolveTarget, videoId } from './video-finder';
@@ -21,8 +21,7 @@ export class Controller {
   private readonly overlay = new Overlay();
   private readonly renderer: Renderer;
   private key = '';
-  private entry: DanmakuEntry | null = null;
-  private fileName = '';
+  private entry: PageDanmaku | null = null;
   private enabled = false;
   private settings: Settings = DEFAULT_SETTINGS;
   private target: HTMLVideoElement | null = null;
@@ -55,20 +54,30 @@ export class Controller {
   }
 
   /**
-   * Reloads when another page imports, replaces or deletes this URL's entry.
-   * Watches the index rather than the entry: the index is written last, so the
-   * comments are in place once its row changes, and offset writes never touch it.
+   * Follows the library, looking only at this page's binding and its danmaku:
+   * - a different danmaku bound (or none any more) reloads, since the binding is
+   *   written last, so the comments are in place once it changes;
+   * - an offset change alone is applied in place, keeping playback;
+   * - a rename of the loaded danmaku is applied in place, without clearing the screen.
    */
   async onStorageChanged(changes: Record<string, { oldValue?: unknown; newValue?: unknown }>): Promise<void> {
-    // Offset written by a popup: apply in place, keeping playback and comments.
-    const offset = changes[`offset:${this.key}`]?.newValue;
-    if (this.entry && typeof offset === 'number') this.entry.offset = offset;
+    const library = changes.library;
+    if (this.entry && library) {
+      const name = (value: unknown) =>
+        (value as LibraryEntry[] | undefined)?.find((e) => e.id === this.entry?.id)?.name;
+      const renamed = name(library.newValue);
+      if (renamed !== undefined && renamed !== name(library.oldValue)) this.entry.name = renamed;
+    }
 
-    const change = changes.index;
-    if (!change) return;
-    const row = (index: unknown) =>
-      JSON.stringify(Array.isArray(index) ? index.find((e: { urlKey?: string }) => e?.urlKey === this.key) : undefined);
-    if (row(change.oldValue) !== row(change.newValue)) await this.reload();
+    const bindings = changes.bindings;
+    if (!bindings) return;
+    const before = (bindings.oldValue as Bindings | undefined)?.[this.key];
+    const after = (bindings.newValue as Bindings | undefined)?.[this.key];
+    if (before?.danmakuId !== after?.danmakuId) {
+      await this.reload();
+    } else if (this.entry && after && after.offset !== before?.offset) {
+      this.entry.offset = after.offset;
+    }
   }
 
   /** Turns danmaku off and loads the new entry when the page's URL key changes. */
@@ -85,7 +94,6 @@ export class Controller {
     this.choice = 'auto';
     // Drop the old entry now so nothing can enable or edit it while the new one loads.
     this.entry = null;
-    this.fileName = '';
     this.renderer.setComments([]);
     this.loading = this.reload();
     await this.loading;
@@ -94,13 +102,10 @@ export class Controller {
   /** Re-reads the current key's entry from storage. */
   async reload(): Promise<void> {
     const version = ++this.loadVersion;
-    const [entry, index] = await Promise.all([getEntry(this.key), listEntries()]);
+    const entry = await getPageDanmaku(this.key);
     // A newer reload (or a URL change, which reloads) started meanwhile.
     if (version !== this.loadVersion) return;
-    const key = this.key;
-    const meta = index.find((e) => e.urlKey === key);
-    this.entry = entry && meta ? entry : null;
-    this.fileName = meta?.fileName ?? '';
+    this.entry = entry;
     this.renderer.setComments(this.entry?.comments ?? []);
     this.clock = null;
     if (!this.entry) this.setEnabled(false);
@@ -152,7 +157,7 @@ export class Controller {
       urlKey: this.key,
       title: this.deps.getTitle(),
       entry: this.entry
-        ? { fileName: this.fileName, count: this.entry.comments.length, offset: this.entry.offset }
+        ? { id: this.entry.id, name: this.entry.name, count: this.entry.comments.length, offset: this.entry.offset }
         : null,
       enabled: this.enabled,
       mode: target ? 'video' : 'loop',
