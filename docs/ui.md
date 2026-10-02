@@ -54,18 +54,24 @@ They exist independently of any page; a page *uses* one of them (see
 - Each danmaku is a row with its name, then file name · comment count · date
   added, and "Used by N pages" (nothing when unused):
   - **Rename**: the ✎ button turns the name into a text field. Enter saves,
-    Escape cancels, and an empty name keeps the old one. A page that has the
-    danmaku loaded keeps playing; only its name changes.
+    Escape cancels (so does leaving the field), and an empty name keeps the old
+    one. A page that has the danmaku loaded keeps playing; only its name changes,
+    and the page card shows it at once.
   - **Use**: uses this danmaku on the current page, replacing the page's previous
     one (which stays in the library); the offset starts at 0. It shows "In use"
     and is disabled when the page already uses it, and is disabled when the page
-    is unavailable (restricted, or needs a reload).
+    is unavailable (restricted, or needs a reload). The popup re-reads the page
+    first and does nothing if the site navigated since the click, so a danmaku
+    is never bound to a page the user did not see.
   - **Used by N pages** expands to the pages using it, each with its title and
-    URL key and a ✕ that unbinds just that page. The current page is marked.
+    URL key (the URL key alone when it has no title) and a ✕ that unbinds just
+    that page. The current page is marked. The list stays open while the library
+    is redrawn.
   - **Delete** (✕) asks inline, because a popup cannot show a dialog: the first
-    click turns the button into "Delete?", or "Delete? Unbinds N pages" when pages
-    use it; a second click within 3 seconds confirms, otherwise it reverts.
-    Deleting removes the danmaku and all its bindings.
+    click turns the button into a full-width "Delete?", or "Delete? Unbinds N
+    pages" when pages use it, on its own line so the name is not squeezed; a
+    second click within 3 seconds confirms, otherwise it reverts. Deleting
+    removes the danmaku and all its bindings.
 - Using, unbinding and deleting update the current page at once: its status
   and the page card refresh without waiting for the storage change to arrive.
 

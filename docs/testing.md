@@ -12,6 +12,13 @@ Cover the pure logic, where bugs are cheap to catch:
 - **Lane allocation**: scroll lanes avoid present and future overlap, top/bottom
   lanes fill from their edge, a full screen drops the comment.
 - **Visible window**: binary-search boundaries, seeks and backward jumps.
+- **Library store**: adding (with and without a page), binding that resets or
+  keeps the offset, unbinding, renaming, deleting with its bindings, per-page
+  offsets for a shared danmaku, concurrent writes, and the write order that keeps
+  bindings from pointing at missing data.
+- **Library in the content script and popup**: following a binding, an offset or
+  a rename from another window; the library list, Use, Used by, inline delete
+  and rename; the import window with and without a page.
 - **`LoopClock`**: starts at 0 and wraps after the last comment.
 
 DOM positioning, fullscreen and real video sync are not unit-tested; mocking them
