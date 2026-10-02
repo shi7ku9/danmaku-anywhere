@@ -5,7 +5,8 @@ A personal project: the goal is something fun and pleasant to use, not a store-r
 
 ## Goals
 
-- Import a danmaku file for the current page and toggle it on/off.
+- Import a danmaku file for the current page, or add it to the library, and
+  toggle it on/off.
 - **Video mode**: when the page has a playing video, comments follow the video's timeline
   (pause, seek and fullscreen all behave correctly).
 - **Loop mode**: when there is no video, or the user picks None in the video
@@ -13,8 +14,12 @@ A personal project: the goal is something fun and pleasant to use, not a store-r
   file's timestamps, and loop when finished.
 - **Video selector**: when a page has several videos, the user can pick which
   one danmaku follows instead of the automatic choice.
-- Imported danmaku is bound to the page URL and stored locally. Revisiting the URL
-  loads it automatically, but it stays **off** until the user turns it on.
+- Danmaku is saved in a local **library**, independent of any page. A page URL is
+  bound to one danmaku from the library, and the same danmaku can serve several
+  pages. Revisiting the URL loads it automatically, but it stays **off** until the
+  user turns it on.
+- From the library the user can add files, rename, use a danmaku on the current
+  page, see which pages use it, unbind pages, and delete.
 
 ## Success criteria
 
@@ -27,6 +32,8 @@ and one click (or the shortcut) brings the comments back.
 - Honoring per-comment font sizes from the source file
 - Bilibili advanced/code comments (modes 7 and 8)
 - Keyword filtering / blocking
+- Detecting duplicate files in the library
+- Migrating danmaku saved by earlier versions
 - Cloud sync or any backend
 - Fetching danmaku from websites automatically
 - Store listing assets, i18n

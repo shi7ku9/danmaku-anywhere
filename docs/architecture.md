@@ -36,14 +36,15 @@
 - **Content script**: injected into every top-level page. Owns the overlay and
   the enabled state for its tab.
 - **Popup**: queries the active tab's content script for status and sends
-  toggles, writes offset changes to storage, edits global settings, manages the
-  stored library. It re-reads the page status before acting, so a site that
+  toggles, writes offset changes to storage, edits global settings, and manages
+  the library (add, rename, delete, use on the current page, unbind). It re-reads the page status before acting, so a site that
   navigates while the popup is open never gets another page's changes.
 - **Import window** (`import.html`): a small extension page opened with
   `windows.create`. It exists because file pickers cannot be opened reliably from
   either the popup (Firefox closes the popup when the picker opens) or the content
-  script (the page lacks the user activation required by `input.click()`). After
-  saving, it sends `reload` straight to the target tab.
+  script (the page lacks the user activation required by `input.click()`). It
+  saves the file to the library and, when opened for a page, binds it to that
+  page, then sends `reload` straight to the target tab.
 - **Background**: listens for the keyboard shortcut and forwards it to the active
   tab.
 
@@ -58,7 +59,7 @@ Each module has a single job and can be tested on its own.
 | `core/timeline` | Binary search over comments sorted by time | nothing (pure) |
 | `core/lanes` | Lane allocation and scroll positions | nothing (pure) |
 | `core/clock` | `VideoClock` and `LoopClock`, both exposing `now(): number` | video element |
-| `storage/store` | Read/write danmaku entries, index and settings | WXT storage |
+| `storage/store` | Library (danmaku and bindings) and settings | WXT storage |
 | `content/video-finder` | Pick the target `<video>` | DOM |
 | `content/renderer` | DOM comment elements for a given time | DOM, `core` |
 | `content/overlay` | Position the overlay over the video or viewport; fullscreen handling | DOM |
@@ -105,7 +106,8 @@ URL key changes.
 | import / popup → content | `reload` | — |
 
 Every message is answered with a `Status`:
-`{ urlKey, title, entry: { fileName, count, offset } | null, enabled, mode, videos, choice, autoTargetId }`.
+`{ urlKey, title, entry: { id, name, count, offset } | null, enabled, mode, videos, choice, autoTargetId }`.
+`entry` describes the danmaku bound to the page (`id` is its library id).
 
 - `videos`: the page's videos with a non-zero size, in document order, each
   `{ id, width, height, playing, currentTime, duration }`.
@@ -116,20 +118,27 @@ Every message is answered with a `Status`:
   current choice. Whether danmaku currently follows a video is `mode`.
 
 Global settings changes are not messaged; the content script watches the
-`settings` storage key and applies changes live. It also watches its own row
-in `index` (written after the comments), so importing, replacing or deleting the
-entry from any page reloads it.
+`settings` storage key and applies changes live. It also follows the library
+through `storage.onChanged`, looking only at its own page and danmaku:
 
-Imports, deletes and offset changes run under one Web Lock (`danmaku-library`)
-covering the comments, the offset and the index row together, so overlapping
-changes from different windows cannot leave them out of sync. Web Locks are
-per origin, so these writes happen only in extension pages (popup, import
-window); content scripts run in the page's origin and never write the library.
-They follow offset changes through `storage.onChanged` without reloading.
+- **Its `bindings` row** (the page's URL key): a different `danmakuId`, or the row
+  disappearing, reloads it (the binding is written last, so the comments are in
+  place); a changed `offset` alone is applied in place, keeping playback.
+- **Its danmaku's `library` row**: a changed `name` alone is updated in place,
+  without clearing the screen. Deleting the danmaku removes the binding first,
+  which the `bindings` rule above handles.
+
+Every library change (add, rename, delete, bind, unbind, offset) runs under one
+Web Lock (`danmaku-library`) covering the danmaku, the `library` row and the
+bindings together, so overlapping changes from different windows cannot leave
+them out of sync. Web Locks are per origin, so these writes happen only in
+extension pages (popup, import window); content scripts run in the page's origin
+and never write the library.
 
 Before handling any message, the content script re-checks the page URL, so a
 single-page navigation that has not been picked up yet never binds an import
-or a toggle to the previous page.
+or a toggle to the previous page. A page's danmaku is loaded from its binding;
+a binding whose comments are missing is treated as no danmaku.
 
 A failed message (no receiver) means the page is restricted or was open before
 the extension was installed; see [ui.md](ui.md#error-handling).

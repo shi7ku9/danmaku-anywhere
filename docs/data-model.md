@@ -82,18 +82,37 @@ fill with Bilibili files.
 
 | Key | Value |
 |---|---|
-| `index` | `{ urlKey, title, fileName, count, importedAt }[]`: a summary list for the popup, so it never loads full comment arrays |
-| `danmaku:<urlKey>` | `{ comments: Comment[] }` |
-| `offset:<urlKey>` | `number`: sync offset in seconds (absent = 0) |
+| `library` | `{ id, name, fileName, count, addedAt }[]`: a summary of every saved danmaku, so the popup never loads full comment arrays |
+| `danmaku:<id>` | `{ comments: Comment[] }` |
+| `bindings` | `Record<urlKey, { danmakuId, offset, title }>`: which danmaku each page uses |
 | `settings` | `Settings`: see [Settings](#settings) |
 
-- One danmaku file per URL key. Importing onto a URL that already has one asks for
-  confirmation before replacing it.
-- The offset (seconds, may be negative) is stored per entry, because a sync offset
-  describes one file against one video. It lives in its own key so changing it is
-  a single small write that never rewrites or races the comments; every tab on
-  that URL picks it up through `storage.onChanged`. Importing resets it to 0.
-- `title` is the page's `document.title` at import time, for display in the library.
+The library holds danmaku **on their own**, independent of any page; a binding
+connects a page to one of them.
+
+- **Danmaku**: `id` is a random UUID. `name` starts as the file name and can be
+  renamed; `fileName` keeps the original. Comments never change after saving
+  (a rename only touches the `library` row), so a danmaku cannot change under a
+  page that has it loaded. Importing the same file twice makes two entries; the
+  library does not look for duplicates.
+- **Binding**: a page (URL key) uses at most one danmaku, and one danmaku can be
+  bound to any number of pages, e.g. the same episode on different sites. Using
+  another danmaku on a page replaces its binding; the previous danmaku stays in
+  the library.
+- The **offset** (seconds, may be negative) is stored on the binding, because a
+  sync offset describes one danmaku against one video, and the same danmaku may
+  need a different offset on each page. A new binding starts at 0. Binding the
+  danmaku a page already uses changes nothing.
+- `title` is the page's `document.title` when it was bound, shown in the
+  library's list of pages using a danmaku.
+- **Deleting** a danmaku removes it and every binding to it; **unbinding** removes
+  only that page's binding. Neither touches other danmaku.
+- Writes happen in this order, so nothing ever points at data that is not there
+  yet (or any more): adding saves the comments, then the `library` row, then the
+  binding; deleting removes the bindings, then the `library` row, then the comments.
+- Danmaku saved by earlier versions (`index`, `danmaku:<urlKey>`,
+  `offset:<urlKey>`) are not migrated. The new keys never collide with them, and
+  the old ones are ignored.
 - The **enabled state is not stored**. It lives in the content script's memory, so
   every page load starts with danmaku off.
 
