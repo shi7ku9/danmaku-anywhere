@@ -78,6 +78,39 @@ export interface DanmakuEntry {
   comments: Comment[];
 }
 
+/** A saved danmaku in the library; its comments are stored apart, under `danmaku:<id>`. */
+export interface LibraryEntry {
+  id: string;
+  /** Starts as the file name; can be renamed. */
+  name: string;
+  /** The file it was imported from. */
+  fileName: string;
+  count: number;
+  /** Epoch milliseconds. */
+  addedAt: number;
+}
+
+/** Which danmaku a page uses, and how far it is shifted against that page's video. */
+export interface Binding {
+  danmakuId: string;
+  /** Seconds added to the clock before lookup; may be negative. */
+  offset: number;
+  /** The page's title when it was bound, for the library's list of pages. */
+  title: string;
+}
+
+/** Bindings by page URL key. */
+export type Bindings = Record<string, Binding>;
+
+/** A page's danmaku as the content script uses it. */
+export interface PageDanmaku {
+  id: string;
+  name: string;
+  offset: number;
+  /** Sorted by time. */
+  comments: Comment[];
+}
+
 export interface ParseResult {
   comments: Comment[];
   skipped: number;
