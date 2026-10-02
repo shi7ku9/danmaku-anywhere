@@ -2,30 +2,50 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { browser } from 'wxt/browser';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import type { Message, Status } from '../../core/messages';
-import { addDanmaku, getBindings } from '../../storage/store';
+import { addDanmaku, bindPage, getBindings, listLibrary } from '../../storage/store';
 import html from './index.html?raw';
 
 const A = 'https://a.com/watch?v=a';
 const B = 'https://a.com/watch?v=b';
+const titles: Record<string, string> = { [A]: 'Page A', [B]: 'Page B' };
 
-const statusFor = (urlKey: string): Status => ({
-  urlKey,
-  title: urlKey,
-  entry: { id: urlKey, name: `${urlKey}.xml`, count: 1, offset: 0 },
-  enabled: true,
-  mode: 'loop',
-  videos: [],
-  choice: 'auto',
-  autoTargetId: null,
-});
+/** What the page's content script would answer: its status, computed from storage when asked. */
+async function statusFor(urlKey: string): Promise<Status> {
+  const binding = (await getBindings())[urlKey];
+  const row = binding && (await listLibrary()).find((e) => e.id === binding.danmakuId);
+  return {
+    urlKey,
+    title: titles[urlKey] ?? urlKey,
+    entry: binding && row ? { id: row.id, name: row.name, count: row.count, offset: binding.offset } : null,
+    enabled: true,
+    mode: 'loop',
+    videos: [],
+    choice: 'auto',
+    autoTargetId: null,
+  };
+}
 
 /** The page the content script is on; answers describe it when they are released. */
 let page: string;
 /** While set, answers wait in `held` until the test releases them, in any order. */
 let holding: boolean;
 let held: (() => void)[];
+/** Every message the popup sent to the page. */
+let sent: Message[];
+/** Ids of the seeded danmaku: `a.xml` is used by page A, `b.xml` by page B. */
+let idA: string;
+let idB: string;
 
 const $ = (id: string) => document.getElementById(id)!;
+
+/** Opens the popup on the current tab, after any extra seeding the test did. */
+async function openPopup(): Promise<void> {
+  // The popup's markup, without its module script (the test imports main.ts itself).
+  document.body.innerHTML = /<body>([\s\S]*)<\/body>/.exec(html)![1]!.replace(/<script[\s\S]*?<\/script>/g, '');
+  await import('./main');
+  const count = String((await listLibrary()).length);
+  await vi.waitFor(() => expect($('library-count').textContent).toBe(count));
+}
 
 beforeEach(async () => {
   fakeBrowser.reset();
@@ -33,26 +53,29 @@ beforeEach(async () => {
   page = A;
   holding = false;
   held = [];
-  await addDanmaku({ fileName: 'a.xml' }, [], { urlKey: A, title: 'A' });
-  await addDanmaku({ fileName: 'b.xml' }, [], { urlKey: B, title: 'B' });
+  sent = [];
+  idA = await addDanmaku({ fileName: 'a.xml' }, [], { urlKey: A, title: titles[A]! });
+  idB = await addDanmaku({ fileName: 'b.xml' }, [], { urlKey: B, title: titles[B]! });
   // The overloaded browser APIs don't fit vi.spyOn's types; the fakes return what the popup reads.
   vi.spyOn(browser.tabs, 'query').mockResolvedValue([{ id: 1, url: A }] as never);
-  vi.spyOn(browser.tabs, 'sendMessage').mockImplementation(((_tabId: number, _message: Message) => {
-    if (!holding) return Promise.resolve(statusFor(page));
-    return new Promise<Status>((resolve) => held.push(() => resolve(statusFor(page))));
+  vi.spyOn(browser.tabs, 'sendMessage').mockImplementation(((_tabId: number, message: Message) => {
+    sent.push(message);
+    if (!holding) return statusFor(page);
+    return new Promise<Status>((resolve) => held.push(() => void statusFor(page).then(resolve)));
   }) as never);
-  // The popup's markup, without its module script (the test imports main.ts itself).
-  document.body.innerHTML = /<body>([\s\S]*)<\/body>/.exec(html)![1]!.replace(/<script[\s\S]*?<\/script>/g, '');
-  await import('./main');
-  await vi.waitFor(() => expect($('page').textContent).toBe(`${A}.xml`));
+  vi.stubGlobal('close', vi.fn());
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe('popup', () => {
   it('applies offset steps to the page it is on after overlapping refreshes', async () => {
+    await openPopup();
+    await vi.waitFor(() => expect($('page').textContent).toBe('a.xml'));
     // The site navigates from A to B while the popup still shows A.
     page = B;
     holding = true;
@@ -67,11 +90,11 @@ describe('popup', () => {
 
     await vi.waitFor(async () => expect((await getBindings())[B]?.offset).toBe(2));
     expect((await getBindings())[A]?.offset).toBe(0);
-    expect($('page').textContent).toBe(`${B}.xml`);
+    expect($('page').textContent).toBe('b.xml');
   });
 
   it('ends on the last video choice when an earlier one answers last', async () => {
-    const sent = vi.mocked(browser.tabs.sendMessage);
+    await openPopup();
     const select = $('video') as HTMLSelectElement;
     holding = true;
     for (const choice of ['none', 'auto']) {
@@ -79,7 +102,7 @@ describe('popup', () => {
       select.dispatchEvent(new Event('change'));
     }
     await vi.waitFor(() => expect(held).toHaveLength(2));
-    const choices = sent.mock.calls.map(([, m]) => m as Message).filter((m) => m.type === 'setVideo');
+    const choices = sent.filter((m) => m.type === 'setVideo');
     expect(choices.map((m) => m.type === 'setVideo' && m.choice)).toEqual(['none', 'auto']);
     // The newer answer first, then the older one: the older must not win.
     held[1]!();
@@ -90,7 +113,6 @@ describe('popup', () => {
 
   it('imports for the page it is on after overlapping refreshes', async () => {
     const create = vi.spyOn(browser.windows, 'create').mockResolvedValue({} as never);
-    vi.spyOn(window, 'close').mockImplementation(() => {});
     page = B;
     holding = true;
     // Import refreshes first; a refresh as the video list opens then makes Import's request stale.
@@ -104,5 +126,173 @@ describe('popup', () => {
     await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
     const url = new URL(create.mock.calls[0]![0]!.url as string, 'chrome-extension://x/');
     expect(url.searchParams.get('urlKey')).toBe(B);
+  });
+
+  describe('library', () => {
+    const rows = () => [...document.querySelectorAll<HTMLElement>('#library > .lib-row')];
+    const nameOf = (row: HTMLElement) => row.querySelector('.name')?.textContent;
+    const rowOf = (name: string) => rows().find((r) => nameOf(r) === name)!;
+    const click = (row: HTMLElement, selector: string) => row.querySelector<HTMLElement>(selector)!.click();
+    /** The inline name field; the row being renamed shows it instead of its name. */
+    const renameField = () => document.querySelector<HTMLInputElement>('#library input.rename');
+    const key = (input: HTMLElement, name: string) => input.dispatchEvent(new KeyboardEvent('keydown', { key: name }));
+    const addedAt = (...times: number[]) =>
+      listLibrary().then((library) =>
+        fakeBrowser.storage.local.set({ library: library.map((e, i) => ({ ...e, addedAt: times[i] })) }),
+      );
+
+    it('lists the danmaku newest first, with their details and users', async () => {
+      await addDanmaku({ fileName: 'c.xml' }, [{ time: 1, text: 'x', mode: 'scroll', color: '#ffffff' }]);
+      await addedAt(1000, 2000, 3000);
+      await openPopup();
+      expect(rows().map(nameOf)).toEqual(['c.xml', 'b.xml', 'a.xml']);
+      expect($('library-count').textContent).toBe('3');
+      expect(rowOf('c.xml').querySelector('.muted')?.textContent).toContain('c.xml · 1 comments');
+      expect(rowOf('c.xml').querySelector('.link')).toBeNull();
+      expect(rowOf('a.xml').querySelector('.link')?.textContent).toContain('Used by 1 page');
+    });
+
+    it('uses a danmaku on the current page, replacing its binding', async () => {
+      const idC = await addDanmaku({ fileName: 'c.xml' }, []);
+      await openPopup();
+      expect(rowOf('a.xml').querySelector<HTMLButtonElement>('.use')).toMatchObject({
+        textContent: 'In use',
+        disabled: true,
+      });
+      click(rowOf('c.xml'), '.use');
+
+      await vi.waitFor(async () => expect((await getBindings())[A]?.danmakuId).toBe(idC));
+      expect((await getBindings())[A]).toMatchObject({ offset: 0, title: 'Page A' });
+      expect(sent).toContainEqual({ type: 'reload' });
+      await vi.waitFor(() => expect($('page').textContent).toBe('c.xml'));
+      await vi.waitFor(() => expect(rowOf('c.xml').querySelector('.use')?.textContent).toBe('In use'));
+      expect(rowOf('a.xml').querySelector<HTMLButtonElement>('.use')?.disabled).toBe(false);
+      expect(await listLibrary()).toHaveLength(3); // The previous danmaku stays.
+    });
+
+    it('does not use a danmaku on a page the user did not see', async () => {
+      const idC = await addDanmaku({ fileName: 'c.xml' }, []);
+      await openPopup();
+      page = B; // The site navigated while the popup was open.
+      click(rowOf('c.xml'), '.use');
+      await vi.waitFor(() => expect($('page').textContent).toBe('b.xml'));
+      const bindings = await getBindings();
+      expect(bindings[A]?.danmakuId).toBe(idA);
+      expect(bindings[B]?.danmakuId).toBe(idB);
+      expect(Object.values(bindings).some((b) => b.danmakuId === idC)).toBe(false);
+    });
+
+    it('shows the pages using a danmaku and unbinds them one by one', async () => {
+      await bindPage(B, idA, titles[B]!);
+      await openPopup();
+      expect(rowOf('a.xml').querySelector('.link')?.textContent).toContain('Used by 2 pages');
+      expect(rowOf('a.xml').querySelector('.pages')).toBeNull();
+      click(rowOf('a.xml'), '.link');
+      await vi.waitFor(() => expect(rowOf('a.xml').querySelectorAll('.pages li')).toHaveLength(2));
+      const pages = [...rowOf('a.xml').querySelectorAll('.pages li')];
+      expect(pages.map((p) => p.querySelector('strong')?.textContent)).toEqual(['Page A (this page)', 'Page B']);
+
+      click(pages[1] as HTMLElement, '.delete'); // Another page: no reload.
+      await vi.waitFor(async () => expect((await getBindings())[B]).toBeUndefined());
+      expect(sent).not.toContainEqual({ type: 'reload' });
+      expect(await listLibrary()).toHaveLength(2);
+      await vi.waitFor(() => expect(rowOf('a.xml').querySelectorAll('.pages li')).toHaveLength(1)); // Stays expanded.
+
+      click(rowOf('a.xml').querySelector('.pages li') as HTMLElement, '.delete'); // This page: reload.
+      await vi.waitFor(async () => expect((await getBindings())[A]).toBeUndefined());
+      await vi.waitFor(() => expect(sent).toContainEqual({ type: 'reload' }));
+      await vi.waitFor(() => expect($('page').textContent).toBe('No danmaku for this page'));
+    });
+
+    it('asks before deleting, naming the pages it unbinds, and disarms after 3 seconds', async () => {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+      await bindPage(B, idA, titles[B]!);
+      await openPopup();
+      const label = () => rowOf('a.xml').querySelector('.delete')?.textContent;
+      expect(label()).toBe('✕');
+      click(rowOf('a.xml'), '.delete');
+      await vi.waitFor(() => expect(label()).toBe('Delete? Unbinds 2 pages'));
+      expect(await listLibrary()).toHaveLength(2);
+
+      vi.advanceTimersByTime(3000);
+      await vi.waitFor(() => expect(label()).toBe('✕'));
+      expect(await listLibrary()).toHaveLength(2);
+    });
+
+    it('deletes on the second click, with its bindings, and reloads the page that used it', async () => {
+      await bindPage(B, idA, titles[B]!);
+      await openPopup();
+      click(rowOf('a.xml'), '.delete');
+      await vi.waitFor(() => expect(rowOf('a.xml').querySelector('.delete')?.textContent).toContain('Delete?'));
+      click(rowOf('a.xml'), '.delete');
+
+      await vi.waitFor(async () => expect((await listLibrary()).map((e) => e.id)).toEqual([idB]));
+      expect(await getBindings()).toEqual({});
+      expect(sent).toContainEqual({ type: 'reload' });
+      await vi.waitFor(() => expect(rows().map(nameOf)).toEqual(['b.xml']));
+      await vi.waitFor(() => expect($('page').textContent).toBe('No danmaku for this page'));
+    });
+
+    it('asks with a plain "Delete?" for a danmaku no page uses', async () => {
+      await addDanmaku({ fileName: 'c.xml' }, []);
+      await openPopup();
+      click(rowOf('c.xml'), '.delete');
+      await vi.waitFor(() => expect(rowOf('c.xml').querySelector('.delete')?.textContent).toBe('Delete?'));
+    });
+
+    it('renames with Enter, showing the new name on the page card', async () => {
+      await openPopup();
+      click(rowOf('a.xml'), '.edit');
+      const input = await vi.waitFor(() => {
+        expect(renameField()).not.toBeNull();
+        return renameField()!;
+      });
+      expect(input.value).toBe('a.xml');
+      expect(document.activeElement).toBe(input);
+      input.value = '  Episode 1  ';
+      key(input, 'Enter');
+
+      await vi.waitFor(async () => expect((await listLibrary())[0]?.name).toBe('Episode 1'));
+      await vi.waitFor(() => expect(rows().map(nameOf)).toContain('Episode 1'));
+      expect($('page').textContent).toBe('Episode 1');
+      expect(renameField()).toBeNull();
+      expect(sent).not.toContainEqual({ type: 'reload' }); // Playback is not interrupted.
+    });
+
+    it('keeps the old name on Escape, on blur and for an empty name', async () => {
+      await openPopup();
+      const edit = async () => {
+        click(rowOf('a.xml'), '.edit');
+        return vi.waitFor(() => {
+          expect(renameField()).not.toBeNull();
+          return renameField()!;
+        });
+      };
+      let input = await edit();
+      input.value = 'Changed';
+      key(input, 'Escape');
+      await vi.waitFor(() => expect(renameField()).toBeNull());
+
+      input = await edit();
+      input.value = 'Changed';
+      input.dispatchEvent(new Event('blur'));
+      await vi.waitFor(() => expect(renameField()).toBeNull());
+
+      input = await edit();
+      input.value = '   ';
+      key(input, 'Enter');
+      await vi.waitFor(() => expect(renameField()).toBeNull());
+      expect((await listLibrary()).map((e) => e.name).sort()).toEqual(['a.xml', 'b.xml']);
+      expect(rows().map(nameOf).sort()).toEqual(['a.xml', 'b.xml']);
+    });
+
+    it('opens the import window without a page for "Add file…"', async () => {
+      const create = vi.spyOn(browser.windows, 'create').mockResolvedValue({} as never);
+      await openPopup();
+      $('library-add').click();
+      await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
+      const url = String(create.mock.calls[0]![0]!.url);
+      expect(url).toMatch(/\/import\.html$/);
+    });
   });
 });

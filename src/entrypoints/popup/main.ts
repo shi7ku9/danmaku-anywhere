@@ -2,9 +2,10 @@ import { browser } from 'wxt/browser';
 import type { Message, Status, VideoChoice } from '../../core/messages';
 import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
-import { deleteDanmaku, getSettings, listLibrary, setPageOffset, settingsItem } from '../../storage/store';
+import { getSettings, setPageOffset, settingsItem } from '../../storage/store';
 import { type FontStatus, fontStatus } from './font-check';
 import { createLatest } from './latest';
+import { initLibrary, renderLibrary } from './library';
 import { createOffsetSender, parseOffsetInput } from './offset';
 import { autoLabel, videoLabel } from './video-label';
 
@@ -396,39 +397,6 @@ async function initSettings(): Promise<void> {
   syncControls();
 }
 
-async function renderLibrary(): Promise<void> {
-  const entries = (await listLibrary()).sort((a, b) => b.addedAt - a.addedAt);
-  $('library-count').textContent = String(entries.length);
-  const list = $('library');
-  list.replaceChildren();
-  for (const entry of entries) {
-    const li = document.createElement('li');
-    const info = document.createElement('div');
-    info.className = 'info';
-    const title = document.createElement('strong');
-    title.textContent = entry.name;
-    const file = document.createElement('span');
-    file.className = 'muted';
-    file.textContent = `${entry.fileName} · ${entry.count} comments · ${new Date(entry.addedAt).toLocaleDateString()}`;
-    info.append(title, file);
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'delete';
-    remove.textContent = '✕';
-    remove.title = 'Delete';
-    remove.setAttribute('aria-label', `Delete ${entry.name}`);
-    remove.addEventListener('click', async () => {
-      await deleteDanmaku(entry.id);
-      if (entry.id === status?.entry?.id) await request({ type: 'reload' });
-      await renderLibrary();
-    });
-
-    li.append(info, remove);
-    list.append(li);
-  }
-}
-
 async function main(): Promise<void> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
@@ -440,17 +408,22 @@ async function main(): Promise<void> {
     await request({ type: 'setEnabled', enabled, urlKey: status?.urlKey });
   });
 
-  $('import').addEventListener('click', async () => {
-    await refresh();
-    if (!status || tabId === undefined) return;
-    const query = new URLSearchParams({ urlKey: status.urlKey, tabId: String(tabId), title: status.title });
+  /** Opens the import window; with a page's query it also binds the file to that page. */
+  const openImport = async (query = '') => {
     await browser.windows.create({
-      url: `${browser.runtime.getURL('/import.html')}?${query}`,
+      url: `${browser.runtime.getURL('/import.html')}${query}`,
       type: 'popup',
       width: 440,
       height: 260,
     });
     window.close();
+  };
+
+  $('import').addEventListener('click', async () => {
+    await refresh();
+    if (!status || tabId === undefined) return;
+    const query = new URLSearchParams({ urlKey: status.urlKey, tabId: String(tabId), title: status.title });
+    await openImport(`?${query}`);
   });
 
   const video = $<HTMLSelectElement>('video');
@@ -481,6 +454,19 @@ async function main(): Promise<void> {
   $('offset-plus').addEventListener('click', () => void step(1));
 
   await initSettings();
+  initLibrary({
+    getStatus: () => status,
+    refresh,
+    reloadPage: () => request({ type: 'reload' }),
+    renamed: (id, name) => {
+      // The page's content script follows a rename on its own; show it now rather than on its next answer.
+      if (status?.entry?.id === id) {
+        status.entry.name = name;
+        renderStatus();
+      }
+    },
+    openImport: () => openImport(),
+  });
   await renderLibrary();
 }
 
