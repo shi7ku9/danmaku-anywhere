@@ -33,6 +33,8 @@ export class Controller {
   private loading: Promise<void> = Promise.resolve();
   /** Bumped by every reload so only the newest one applies its result. */
   private loadVersion = 0;
+  /** The newest reload, which an older one waits for when it is superseded. */
+  private newestReload: Promise<void> = Promise.resolve();
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -99,12 +101,23 @@ export class Controller {
     await this.loading;
   }
 
-  /** Re-reads the current key's entry from storage. */
-  async reload(): Promise<void> {
+  /**
+   * Re-reads the current key's entry from storage. Resolves once the newest
+   * overlapping reload has been applied, so a caller (such as the reply to a
+   * popup's `reload` message) never reports state older than that reload.
+   */
+  reload(): Promise<void> {
     const version = ++this.loadVersion;
+    const run = this.load(version);
+    this.newestReload = run;
+    return run;
+  }
+
+  private async load(version: number): Promise<void> {
     const entry = await getPageDanmaku(this.key);
-    // A newer reload (or a URL change, which reloads) started meanwhile.
-    if (version !== this.loadVersion) return;
+    // A newer reload (or a URL change, which reloads) started meanwhile: it applies its own
+    // result, and this one waits for it instead of returning while that state is still old.
+    if (version !== this.loadVersion) return this.newestReload;
     this.entry = entry;
     this.renderer.setComments(this.entry?.comments ?? []);
     this.clock = null;

@@ -140,5 +140,12 @@ single-page navigation that has not been picked up yet never binds an import
 or a toggle to the previous page. A page's danmaku is loaded from its binding;
 a binding whose comments are missing is treated as no danmaku.
 
+Reloads can overlap: using a danmaku from the popup writes the binding, which
+both makes the popup send `reload` and makes the content script see the storage
+change, and the two can arrive in either order. Only the newest reload applies
+its result, and an older one resolves only once the newest has been applied, so
+the reply to a `reload` message never carries state older than that reload (a
+stale reply would leave the popup showing no danmaku and its switch disabled).
+
 A failed message (no receiver) means the page is restricted or was open before
 the extension was installed; see [ui.md](ui.md#error-handling).

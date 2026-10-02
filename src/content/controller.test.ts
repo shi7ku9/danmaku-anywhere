@@ -330,6 +330,50 @@ describe('Controller', () => {
     expect(controller.status().entry).toBeNull();
   });
 
+  it('answers a reload only once the newest overlapping reload has been applied', async () => {
+    // A popup's reload message and the storage event for the same change both reload the page;
+    // the message's reply must not be computed before the newer reload is in.
+    const other = await addDanmaku({ fileName: 'other.xml' }, comments.slice(0, 1));
+    await bindPage(PAGE, other, 'A');
+    const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
+    const open = () => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      return { gate, release };
+    };
+    let current = open();
+    vi.spyOn(fakeBrowser.storage.local, 'get').mockImplementation(async (keys) => {
+      const mine = current.gate;
+      const result = await get(keys);
+      await mine;
+      return result;
+    });
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+
+    // The message's reload starts first and waits on its reads.
+    const first = current;
+    let replied = false;
+    const reply = controller.handleMessage({ type: 'reload' }).then((status) => {
+      replied = true;
+      return status;
+    });
+    await flush();
+    // The storage event starts a newer reload, whose reads wait on a second gate.
+    current = open();
+    const second = current;
+    const changed = controller.onStorageChanged(
+      bindingChange(PAGE, { danmakuId: pageId, offset: 0 }, { danmakuId: other, offset: 0 }),
+    );
+    await flush();
+
+    first.release(); // The older reload finishes and finds itself superseded.
+    await flush();
+    expect(replied).toBe(false); // ...so the reply waits for the newest one.
+    second.release();
+    await changed;
+    expect((await reply).entry).toMatchObject({ id: other, name: 'other.xml' });
+  });
+
   it('reports video mode right after enabling over a playing video', () => {
     const video = document.createElement('video');
     Object.defineProperty(video, 'paused', { value: false });
