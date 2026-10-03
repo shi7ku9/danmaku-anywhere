@@ -4,7 +4,7 @@
 
 From top to bottom:
 
-1. **Current page**: "Loaded: `fileName` (N comments)" or "No danmaku for this page".
+1. **Current page**: "Loaded: `name` (N comments)" or "No danmaku for this page".
 2. **On/off switch** with the current mode ("video sync" or "loop").
    Disabled when the page has no danmaku.
 3. **Video** select: which video danmaku follows (see
@@ -29,7 +29,8 @@ is shown; a late answer to an older one is dropped, so it can never show or
 restore a stale state. Every caller, including one whose own answer was
 dropped, resumes only once the newest answer is in, so an action that refreshes
 first (offset, import) always acts on the page the tab is on now.
-4. **Import** button: opens the import window for the current tab.
+4. **Import** button: opens the import window for the current tab. The file is
+   saved to the library and used on this page.
 5. **Offset**: number input (seconds) plus `−1s` / `+1s` buttons. Applied live
    and saved to the entry. Hidden when the page has no danmaku.
 6. **Settings**: always visible. A preview on top shows one sample comment on a
@@ -40,8 +41,42 @@ first (offset, import) always acts on the page the tab is on now.
    proportions to the text as on the video. Below it, sliders for opacity, font size and speed. Applied
    live to all tabs.
 7. **Advanced style** (collapsible): see [Advanced style](#advanced-style).
-8. **Library** (collapsible): every stored entry with title, URL key, file name
-   and import date, each with a delete button.
+8. **Library** (collapsible): see [Library](#library).
+
+## Library
+
+A collapsible section, `Library (N)`, holding the saved danmaku, newest first.
+They exist independently of any page; a page *uses* one of them (see
+[data-model.md](data-model.md#storage-layout)). Inside:
+
+- **Add file…** opens the import window without a page, so the file is only saved
+  to the library.
+- Each danmaku is a row with its name, then file name · comment count · date
+  added, and "Used by N pages" (nothing when unused):
+  - **Rename**: the ✎ button turns the name into a text field. Enter saves,
+    Escape cancels (so does leaving the field), and an empty name keeps the old
+    one. A page that has the danmaku loaded keeps playing; only its name changes,
+    and the page card shows it at once.
+  - **Use**: uses this danmaku on the current page, replacing the page's previous
+    one (which stays in the library); the offset starts at 0. It shows "In use"
+    and is disabled when the page already uses it, and is disabled when the page
+    is unavailable (restricted, or needs a reload). The popup re-reads the page
+    first and does nothing if the site navigated since the click, so a danmaku
+    is never bound to a page the user did not see.
+  - **Used by N pages** expands to the pages using it, each with its title and
+    URL key (the URL key alone when it has no title) and a ✕ that unbinds just
+    that page. The current page is marked. The list stays open while the library
+    is redrawn.
+  - **Delete** (✕) asks inline, because a popup cannot show a dialog: the first
+    click turns the button into a full-width "Delete?", or "Delete? Unbinds N
+    pages" when pages use it, on its own line so the name is not squeezed; a
+    second click within 3 seconds confirms, otherwise it reverts. Deleting
+    removes the danmaku and all its bindings.
+- Using, unbinding and deleting update the current page at once: its status
+  and the page card refresh without waiting for the storage change to arrive.
+- The list is redrawn whenever the page or the danmaku it uses changes (for
+  example when the site navigates while the popup is open), so "In use" and the
+  current-page mark always match the page card.
 
 ## Advanced style
 
@@ -110,17 +145,19 @@ once the value is valid.
 ## Import window
 
 Opened with `windows.create({ type: 'popup' })` at
-`import.html?urlKey=…&tabId=…&title=…`.
+`import.html?urlKey=…&tabId=…&title=…` for a page (the popup's **Import**), or
+with no parameters from the library's **Add file…**, which only saves the file.
 
 1. File input accepting `.xml` and `.json`, or drag a file anywhere into the
    window. Drag and drop bypasses the native file chooser, which is broken in
    some Linux setups. Of several dropped files only the first is imported.
 2. On selection or drop: read, detect format, parse.
-3. If the URL key already has an entry, ask to confirm replacement; declining
-   shows "Import cancelled."
-4. Save the entry (offset 0) and update `index`.
-5. Show "imported N, skipped M", send `reload` for the tab, and close after a
-   short delay.
+3. Save the danmaku to the library, named after the file.
+4. For a page, also bind it to the page, replacing any previous binding with the
+   offset at 0. There is no confirmation: the previous danmaku stays in the
+   library, and only its offset for this page is lost.
+5. Show "imported N, skipped M" (plus "Added to the library" when there is no
+   page), send `reload` for the tab if there is one, and close after a short delay.
 
 ## Keyboard shortcut
 

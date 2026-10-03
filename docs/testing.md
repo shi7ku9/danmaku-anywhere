@@ -12,6 +12,13 @@ Cover the pure logic, where bugs are cheap to catch:
 - **Lane allocation**: scroll lanes avoid present and future overlap, top/bottom
   lanes fill from their edge, a full screen drops the comment.
 - **Visible window**: binary-search boundaries, seeks and backward jumps.
+- **Library store**: adding (with and without a page), binding that resets or
+  keeps the offset, unbinding, renaming, deleting with its bindings, per-page
+  offsets for a shared danmaku, concurrent writes, and the write order that keeps
+  bindings from pointing at missing data.
+- **Library in the content script and popup**: following a binding, an offset or
+  a rename from another window; the library list, Use, Used by, inline delete
+  and rename; the import window with and without a page.
 - **`LoopClock`**: starts at 0 and wraps after the last comment.
 
 DOM positioning, fullscreen and real video sync are not unit-tested; mocking them
@@ -35,7 +42,16 @@ Run in both Chrome and Firefox before calling a change done.
       Auto brings back video sync. Reloading resets the choice to Auto.
 - [ ] Plain article page: import JSON; comments play from 0 and loop.
 - [ ] Settings sliders apply live to an open tab.
-- [ ] Delete an entry from the library; the page shows "no danmaku".
+- [ ] Library → Add file…: the danmaku appears in the library and no page uses it.
+- [ ] Use a library danmaku on a page: it loads (off). Use it on a second page:
+      each page keeps its own offset. Use another one on the first page: the
+      offset restarts at 0 and the previous danmaku is still in the library.
+- [ ] Rename a danmaku used by an open, playing tab: the name changes in the popup
+      and the comments keep playing.
+- [ ] Unbind a page from "Used by": that page shows "no danmaku" and the library
+      keeps the danmaku.
+- [ ] Delete a danmaku used by two pages: the confirmation names 2 pages, and both
+      pages show "no danmaku" afterwards.
 - [ ] Restricted page (`chrome://extensions` / `about:addons`): popup shows the
       unavailable message.
 - [ ] Clicks pass through the overlay to the page underneath.

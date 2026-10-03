@@ -2,9 +2,10 @@ import { browser } from 'wxt/browser';
 import type { Message, Status, VideoChoice } from '../../core/messages';
 import { BASE_FONT_SIZE, FONT_PRESETS, fontStack, textShadow } from '../../core/style';
 import { DEFAULT_SETTINGS, type Settings } from '../../core/types';
-import { deleteEntry, getSettings, listEntries, setOffset, settingsItem } from '../../storage/store';
+import { getSettings, setPageOffset, settingsItem } from '../../storage/store';
 import { type FontStatus, fontStatus } from './font-check';
 import { createLatest } from './latest';
+import { initLibrary, renderLibrary } from './library';
 import { createOffsetSender, parseOffsetInput } from './offset';
 import { autoLabel, videoLabel } from './video-label';
 
@@ -23,17 +24,20 @@ let status: Status | null = null;
 let offset = createOffsetSender(0, async () => {});
 
 /**
- * Takes a fresh status. When the page's key changed (e.g. the site moved to the
- * next video), the offset sender restarts from the new page's offset; each
- * sender only ever writes to the key it was created for.
+ * Takes a fresh status. When the page or its binding changed (e.g. the site moved
+ * to the next video, or a danmaku was used, even the same one again), the offset
+ * sender restarts from the new offset. Each sender only ever writes for the page
+ * and binding it was created for; the store ignores a write whose binding is no
+ * longer the page's, including writes the old sender still has queued.
  */
 function adopt(next: Status | null): void {
-  if (next?.urlKey !== status?.urlKey) {
+  if (next?.urlKey !== status?.urlKey || next?.entry?.bindingId !== status?.entry?.bindingId) {
     const key = next?.urlKey;
+    const id = next?.entry?.bindingId;
     offset = createOffsetSender(next?.entry?.offset ?? 0, async (value) => {
       // Written here, under the library lock shared with import windows; the
       // page's content script picks it up through storage.onChanged.
-      if (key) await setOffset(key, value);
+      if (key && id !== undefined) await setPageOffset(key, id, value);
       await refresh();
     });
   } else if (next?.entry) {
@@ -86,8 +90,8 @@ function renderStatus(): void {
     $('page').textContent = isRestricted(tabUrl) ? 'Not available on this page' : 'Reload the page to use danmaku';
     $('page-meta').textContent = '';
   } else if (entry) {
-    $('page').textContent = entry.fileName;
-    $('page').title = entry.fileName;
+    $('page').textContent = entry.name;
+    $('page').title = entry.name;
     $('page-meta').textContent = `${entry.count} comments`;
   } else {
     $('page').textContent = 'No danmaku for this page';
@@ -109,6 +113,21 @@ function renderStatus(): void {
   $('offset-row').hidden = !entry;
   // The local value leads while offset changes are still in flight.
   if (entry) $<HTMLInputElement>('offset').value = String(offset.value);
+
+  syncLibrary();
+}
+
+let libraryReady = false;
+/** What the library list was last drawn for: which page, and which danmaku it uses. */
+let libraryShown = '';
+
+const libraryKey = () => `${status?.urlKey ?? ''}|${status?.entry?.id ?? ''}`;
+
+/** Redraws the library when the page or its danmaku changed, so "In use" and the page mark follow. */
+function syncLibrary(): void {
+  if (!libraryReady || libraryKey() === libraryShown) return;
+  libraryShown = libraryKey();
+  void renderLibrary();
 }
 
 type NumericKey = { [K in keyof Settings]: number extends Settings[K] ? K : never }[keyof Settings];
@@ -396,43 +415,6 @@ async function initSettings(): Promise<void> {
   syncControls();
 }
 
-async function renderLibrary(): Promise<void> {
-  const entries = (await listEntries()).sort((a, b) => b.importedAt - a.importedAt);
-  $('library-count').textContent = String(entries.length);
-  const list = $('library');
-  list.replaceChildren();
-  for (const entry of entries) {
-    const li = document.createElement('li');
-    const info = document.createElement('div');
-    info.className = 'info';
-    const title = document.createElement('strong');
-    title.textContent = entry.title || entry.urlKey;
-    const key = document.createElement('span');
-    key.className = 'muted';
-    key.textContent = entry.urlKey;
-    key.title = entry.urlKey;
-    const file = document.createElement('span');
-    file.className = 'muted';
-    file.textContent = `${entry.fileName} · ${new Date(entry.importedAt).toLocaleDateString()}`;
-    info.append(title, key, file);
-
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.className = 'delete';
-    remove.textContent = '✕';
-    remove.title = 'Delete';
-    remove.setAttribute('aria-label', `Delete danmaku for ${entry.title || entry.urlKey}`);
-    remove.addEventListener('click', async () => {
-      await deleteEntry(entry.urlKey);
-      if (entry.urlKey === status?.urlKey) await request({ type: 'reload' });
-      await renderLibrary();
-    });
-
-    li.append(info, remove);
-    list.append(li);
-  }
-}
-
 async function main(): Promise<void> {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   tabId = tab?.id;
@@ -444,17 +426,22 @@ async function main(): Promise<void> {
     await request({ type: 'setEnabled', enabled, urlKey: status?.urlKey });
   });
 
-  $('import').addEventListener('click', async () => {
-    await refresh();
-    if (!status || tabId === undefined) return;
-    const query = new URLSearchParams({ urlKey: status.urlKey, tabId: String(tabId), title: status.title });
+  /** Opens the import window; with a page's query it also binds the file to that page. */
+  const openImport = async (query = '') => {
     await browser.windows.create({
-      url: `${browser.runtime.getURL('/import.html')}?${query}`,
+      url: `${browser.runtime.getURL('/import.html')}${query}`,
       type: 'popup',
       width: 440,
       height: 260,
     });
     window.close();
+  };
+
+  $('import').addEventListener('click', async () => {
+    await refresh();
+    if (!status || tabId === undefined) return;
+    const query = new URLSearchParams({ urlKey: status.urlKey, tabId: String(tabId), title: status.title });
+    await openImport(`?${query}`);
   });
 
   const video = $<HTMLSelectElement>('video');
@@ -485,6 +472,21 @@ async function main(): Promise<void> {
   $('offset-plus').addEventListener('click', () => void step(1));
 
   await initSettings();
+  initLibrary({
+    getStatus: () => status,
+    refresh,
+    reloadPage: () => request({ type: 'reload' }),
+    renamed: (id, name) => {
+      // The page's content script follows a rename on its own; show it now rather than on its next answer.
+      if (status?.entry?.id === id) {
+        status.entry.name = name;
+        renderStatus();
+      }
+    },
+    openImport: () => openImport(),
+  });
+  libraryReady = true;
+  libraryShown = libraryKey();
   await renderLibrary();
 }
 

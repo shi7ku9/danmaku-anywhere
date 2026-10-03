@@ -61,18 +61,41 @@ export const DEFAULT_SETTINGS: Settings = {
   maxActive: 150,
 };
 
-/** Summary of a stored entry, listed in the popup without loading comments. */
-export interface IndexEntry {
-  urlKey: string;
-  title: string;
+/** A saved danmaku in the library; its comments are stored apart, under `danmaku:<id>`. */
+export interface LibraryEntry {
+  id: string;
+  /** Starts as the file name; can be renamed. */
+  name: string;
+  /** The file it was imported from. */
   fileName: string;
   count: number;
   /** Epoch milliseconds. */
-  importedAt: number;
+  addedAt: number;
 }
 
-export interface DanmakuEntry {
+/** Which danmaku a page uses, and how far it is shifted against that page's video. */
+export interface Binding {
+  /**
+   * Identifies this binding. Unbinding and binding again, even the same danmaku,
+   * makes a new one, so a write meant for the old binding can be told apart.
+   */
+  id: string;
+  danmakuId: string;
   /** Seconds added to the clock before lookup; may be negative. */
+  offset: number;
+  /** The page's title when it was bound, for the library's list of pages. */
+  title: string;
+}
+
+/** Bindings by page URL key. */
+export type Bindings = Record<string, Binding>;
+
+/** A page's danmaku as the content script uses it. */
+export interface PageDanmaku {
+  id: string;
+  /** The binding of the page to this danmaku (see `Binding.id`). */
+  bindingId: string;
+  name: string;
   offset: number;
   /** Sorted by time. */
   comments: Comment[];

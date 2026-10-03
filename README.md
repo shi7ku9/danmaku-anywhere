@@ -12,10 +12,13 @@ browser, with no account and no backend.
   fullscreen.
 - **Loop mode**: on pages without a video, comments play from the moment you turn
   them on and loop when finished.
-- **Bound to the page**: danmaku is saved for the page URL (tracking parameters
-  are ignored; YouTube keeps only the video ID) and loaded automatically next
-  time, but stays off until you turn it on.
-- **Sync offset** per page, adjustable live.
+- **Library**: saved danmaku live in a library, independent of any page. Use one
+  on the current page from the popup, and reuse it on other pages (say, the same
+  episode on another site).
+- **Bound to the page**: a page remembers which danmaku it uses (by URL, ignoring
+  tracking parameters; YouTube keeps only the video ID) and loads it
+  automatically next time, but stays off until you turn it on.
+- **Sync offset** per page, adjustable live and remembered with the page.
 - **Styles**: opacity, font size and speed, plus advanced options: outline and/or
   shadow with width, blur and color; font presets or any custom font list
   (checked against installed fonts); weight; display area to keep the middle of
@@ -64,12 +67,15 @@ pnpm build:firefox    # Firefox → .output/firefox-mv2
 ## Usage
 
 1. Open the page with the video and click the extension icon.
-2. Click **Import file…** and pick (or drop) a Bilibili XML or JSON file.
+2. Click **Import file…** and pick (or drop) a Bilibili XML or JSON file. It is
+   saved to the library and used on this page. Or open the **Library** and
+   **Use** a danmaku you already saved.
 3. Turn danmaku on with the switch or `Alt+Shift+D`.
 4. If comments are early or late, adjust the **Offset**.
 5. Tune the look with the sliders and **Advanced style**; changes apply live to
    all tabs.
-6. **Library** lists every saved page and lets you delete entries.
+6. **Library** lists the saved danmaku: add files, rename, use one on the current
+   page, see which pages use it, unbind pages, or delete it.
 
 ## Development
 

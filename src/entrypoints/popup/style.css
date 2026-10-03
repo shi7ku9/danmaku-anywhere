@@ -503,32 +503,100 @@ h1 {
   display: none;
 }
 
-#library li {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.library-bar {
+  margin: 0 12px 8px;
+}
+
+#library > .lib-row {
   padding: 8px 12px;
 }
 
-#library li + li {
+#library > .lib-row + .lib-row {
   border-top: 1px solid var(--border);
 }
 
-#library .info {
-  flex: 1;
-  min-width: 0;
+.lib-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-#library .info > * {
-  display: block;
+.lib-head .name {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-#library .muted {
+.lib-head .text {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.lib-head .chip {
+  padding: 2px 7px;
+}
+
+.lib-row .muted {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11px;
   color: var(--muted);
+}
+
+.lib-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.lib-actions .chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.link {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.link:hover {
+  color: var(--text);
+}
+
+.pages {
+  margin: 6px 0 0;
+  padding: 0 0 0 8px;
+  list-style: none;
+  border-left: 2px solid var(--border);
+}
+
+.pages li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+}
+
+.pages .info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pages .info > * {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .delete {
@@ -546,4 +614,15 @@ h1 {
 .delete:hover {
   background: var(--chip);
   color: var(--danger);
+}
+
+.delete.armed {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 0 8px;
+  background: var(--danger);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
 }

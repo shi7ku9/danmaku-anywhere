@@ -1,7 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { type Comment, DEFAULT_SETTINGS } from '../core/types';
-import { saveEntry, setOffset } from '../storage/store';
+import {
+  addDanmaku,
+  bindPage,
+  getBindings,
+  listLibrary,
+  renameDanmaku,
+  setPageOffset,
+  unbindPage,
+} from '../storage/store';
 import { Controller } from './controller';
 import { videoId } from './video-finder';
 
@@ -11,7 +19,27 @@ const comments: Comment[] = [
   { time: 1, text: 'b', mode: 'scroll', color: '#ffffff' },
 ];
 
+const OTHER = 'https://b.com/';
+
+/** Saves a danmaku and binds it to a page. */
+const seed = (urlKey: string, fileName: string, list: Comment[]) =>
+  addDanmaku({ fileName }, list, { urlKey, title: `Title of ${urlKey}` });
+/** The id of a page's binding, which offset writes must name. */
+const bindingIdOf = async (urlKey: string) => (await getBindings())[urlKey]!.id;
+type Row = { danmakuId: string; offset: number; id?: string };
+/** The shape of a `bindings` storage change for one page; unless given, the binding id follows the danmaku. */
+const bindingChange = (urlKey: string, before: Row | undefined, after: Row | undefined) => {
+  const row = (r: Row) => ({ id: `binding-of-${r.danmakuId}`, ...r, title: 'T' });
+  return {
+    bindings: {
+      oldValue: before ? { [urlKey]: row(before) } : {},
+      newValue: after ? { [urlKey]: row(after) } : {},
+    },
+  };
+};
+
 let url: string;
+let pageId: string;
 type RequestFrame = (cb: () => void) => number;
 let requestFrame: ReturnType<typeof vi.fn<RequestFrame>>;
 let cancelFrame: ReturnType<typeof vi.fn<(id: number) => void>>;
@@ -22,7 +50,7 @@ const drawn = () => document.querySelector('danmaku-overlay')?.shadowRoot?.query
 
 beforeEach(async () => {
   fakeBrowser.reset();
-  await saveEntry({ urlKey: PAGE, title: 'A', fileName: 'a.json' }, comments);
+  pageId = await seed(PAGE, 'a.json', comments);
   url = `${PAGE}#top`;
   requestFrame = vi.fn<RequestFrame>(() => ++frameId);
   cancelFrame = vi.fn<(id: number) => void>();
@@ -39,14 +67,15 @@ beforeEach(async () => {
 afterEach(() => {
   controller.setEnabled(false);
   vi.useRealTimers();
+  vi.restoreAllMocks(); // Storage spies from one test must not wrap those of the next.
 });
 
 describe('Controller', () => {
-  it('loads the entry for the page but stays off', () => {
+  it('loads the entry for the page but stays off', async () => {
     expect(controller.status()).toEqual({
       urlKey: PAGE,
       title: 'Title',
-      entry: { fileName: 'a.json', count: 2, offset: 0 },
+      entry: { id: pageId, bindingId: await bindingIdOf(PAGE), name: 'a.json', count: 2, offset: 0 },
       enabled: false,
       mode: 'loop',
       videos: [],
@@ -85,14 +114,14 @@ describe('Controller', () => {
   });
 
   it('turns off and loads the new entry when the URL changes', async () => {
-    await saveEntry({ urlKey: 'https://b.com/', title: 'B', fileName: 'b.xml' }, comments.slice(0, 1));
+    await seed(OTHER, 'b.xml', comments.slice(0, 1));
     controller.toggle();
     url = 'https://b.com/';
     await controller.checkUrl();
     expect(controller.status()).toMatchObject({
       urlKey: 'https://b.com/',
       enabled: false,
-      entry: { fileName: 'b.xml', count: 1 },
+      entry: { name: 'b.xml', count: 1 },
     });
   });
 
@@ -101,7 +130,9 @@ describe('Controller', () => {
     url = 'https://b.com/';
     const pending = controller.checkUrl();
     controller.toggle();
-    await controller.onStorageChanged({ [`offset:${PAGE}`]: { newValue: 5 } });
+    await controller.onStorageChanged(
+      bindingChange(PAGE, { danmakuId: pageId, offset: 0 }, { danmakuId: pageId, offset: 5 }),
+    );
     expect(controller.status()).toMatchObject({ enabled: false, entry: null });
     await pending;
   });
@@ -115,9 +146,9 @@ describe('Controller', () => {
 
   it('reload picks up a new import and keeps the enabled state', async () => {
     controller.toggle();
-    await saveEntry({ urlKey: PAGE, title: 'A', fileName: 'new.xml' }, comments.slice(0, 1));
+    await seed(PAGE, 'new.xml', comments.slice(0, 1));
     const status = await controller.handleMessage({ type: 'reload' });
-    expect(status).toMatchObject({ enabled: true, entry: { fileName: 'new.xml', count: 1 } });
+    expect(status).toMatchObject({ enabled: true, entry: { name: 'new.xml', count: 1 } });
   });
 
   it('reload turns off when the entry was deleted', async () => {
@@ -139,50 +170,119 @@ describe('Controller', () => {
     expect(cancelFrame).toHaveBeenCalledWith(id);
   });
 
-  it('loads an entry first imported from another tab once its index row exists', async () => {
-    url = 'https://b.com/';
+  it('loads a danmaku bound from another tab once its binding exists', async () => {
+    url = OTHER;
     await controller.checkUrl();
-    // Comments land first; the storage event for them must not decide the state.
-    await fakeBrowser.storage.local.set({ 'danmaku:https://b.com/': { offset: 0, comments } });
+    // Comments and the library row land first; their storage events must not decide the state.
+    const id = await addDanmaku({ fileName: 'b.xml' }, comments);
+    await controller.onStorageChanged({ library: { oldValue: [], newValue: await listLibrary() } });
     expect(controller.status().entry).toBeNull();
-    await saveEntry({ urlKey: 'https://b.com/', title: 'B', fileName: 'b.xml' }, comments);
-    await controller.onStorageChanged({
-      index: { oldValue: [], newValue: [{ urlKey: 'https://b.com/', fileName: 'b.xml' }] },
-    });
-    expect(controller.status()).toMatchObject({ entry: { fileName: 'b.xml', count: 2 } });
+    await bindPage(OTHER, id, 'B');
+    await controller.onStorageChanged(bindingChange(OTHER, undefined, { danmakuId: id, offset: 0 }));
+    expect(controller.status()).toMatchObject({ entry: { id, name: 'b.xml', count: 2 } });
   });
 
-  it('unloads when its index row is deleted elsewhere', async () => {
+  it('reloads when another danmaku is bound to its page', async () => {
     controller.toggle();
-    await fakeBrowser.storage.local.clear();
-    await controller.onStorageChanged({ index: { oldValue: [{ urlKey: PAGE }], newValue: [] } });
+    controller.tick();
+    const other = await addDanmaku({ fileName: 'other.xml' }, comments.slice(0, 1));
+    await bindPage(PAGE, other, 'A');
+    await controller.onStorageChanged(
+      bindingChange(PAGE, { danmakuId: pageId, offset: 0 }, { danmakuId: other, offset: 0 }),
+    );
+    expect(controller.status()).toMatchObject({ enabled: true, entry: { id: other, name: 'other.xml', count: 1 } });
+  });
+
+  it('reloads when its page is unbound and bound again to the same danmaku', async () => {
+    controller.toggle();
+    await setPageOffset(PAGE, await bindingIdOf(PAGE), 7);
+    await controller.reload();
+    expect(controller.status().entry).toMatchObject({ id: pageId, offset: 7 });
+    const old = await bindingIdOf(PAGE);
+    await unbindPage(PAGE);
+    await bindPage(PAGE, pageId, 'A');
+    // Both changes may reach the page as one: the same danmaku, but a different binding at offset 0.
+    await controller.onStorageChanged(
+      bindingChange(
+        PAGE,
+        { id: old, danmakuId: pageId, offset: 7 },
+        { id: await bindingIdOf(PAGE), danmakuId: pageId, offset: 0 },
+      ),
+    );
+    expect(controller.status().entry).toMatchObject({ id: pageId, offset: 0, bindingId: await bindingIdOf(PAGE) });
+  });
+
+  it('unloads when its page is unbound elsewhere', async () => {
+    controller.toggle();
+    await unbindPage(PAGE);
+    await controller.onStorageChanged(bindingChange(PAGE, { danmakuId: pageId, offset: 0 }, undefined));
     expect(controller.status()).toMatchObject({ enabled: false, entry: null });
   });
 
-  it('follows offset changes from another tab without reloading', async () => {
+  it('follows an offset change on its binding without reloading', async () => {
     controller.toggle();
-    controller.tick();
-    await controller.onStorageChanged({ [`offset:${PAGE}`]: { oldValue: 0, newValue: 5 } });
+    // With the data gone, a reload would unload the page; an in-place change keeps it.
+    await fakeBrowser.storage.local.clear();
+    await controller.onStorageChanged(
+      bindingChange(PAGE, { danmakuId: pageId, offset: 0 }, { danmakuId: pageId, offset: 5 }),
+    );
     expect(controller.status()).toMatchObject({ enabled: true, entry: { offset: 5, count: 2 } });
-    await controller.onStorageChanged({ 'offset:https://b.com/': { newValue: 9 } });
-    expect(controller.status().entry?.offset).toBe(5);
   });
 
-  it('ignores index changes that leave its own row unchanged', async () => {
+  it('follows a rename of its danmaku without clearing the screen', async () => {
     controller.toggle();
     controller.tick();
-    const row = { urlKey: PAGE, fileName: 'a.json' };
-    await controller.onStorageChanged({ index: { oldValue: [row], newValue: [row, { urlKey: 'https://b.com/' }] } });
-    await controller.onStorageChanged({ [`danmaku:${PAGE}`]: { oldValue: {}, newValue: {} } });
+    const before = await listLibrary();
+    await renameDanmaku(pageId, 'Episode 1');
+    // With the data gone, a reload would unload the page; an in-place rename keeps it.
+    const after = await listLibrary();
+    await fakeBrowser.storage.local.clear();
+    await controller.onStorageChanged({ library: { oldValue: before, newValue: after } });
+    expect(controller.status()).toMatchObject({ enabled: true, entry: { id: pageId, name: 'Episode 1' } });
+    controller.tick();
+    expect(drawn()).toBe(1); // The screen was not cleared.
+  });
+
+  it('ignores changes to other pages and other danmaku', async () => {
+    controller.toggle();
+    controller.tick();
+    const mine = { danmakuId: pageId, offset: 0 };
+    const theirs = { danmakuId: 'x', offset: 9 };
+    await controller.onStorageChanged({
+      bindings: {
+        oldValue: { [PAGE]: { ...mine, title: 'A' } },
+        newValue: { [PAGE]: { ...mine, title: 'A renamed' }, [OTHER]: { ...theirs, title: 'B' } },
+      },
+    });
+    await controller.onStorageChanged({
+      library: { oldValue: [], newValue: [{ id: 'x', name: 'Other', fileName: 'o.xml', count: 1, addedAt: 1 }] },
+    });
+    await controller.onStorageChanged({ [`danmaku:${pageId}`]: { oldValue: {}, newValue: {} } });
+    expect(controller.status()).toMatchObject({ entry: { id: pageId, name: 'a.json', offset: 0 } });
     expect(drawn()).toBe(1);
+  });
+
+  it('keeps a separate offset per page that shares a danmaku', async () => {
+    await bindPage(OTHER, pageId, 'B');
+    await setPageOffset(PAGE, await bindingIdOf(PAGE), 2);
+    await setPageOffset(OTHER, await bindingIdOf(OTHER), -4);
+    await controller.reload();
+    expect(controller.status().entry).toMatchObject({ id: pageId, offset: 2 });
+    url = OTHER;
+    await controller.checkUrl();
+    expect(controller.status().entry).toMatchObject({ id: pageId, offset: -4 });
+    expect((await getBindings())[PAGE]?.offset).toBe(2);
+  });
+
+  it('has no danmaku when the bound comments are missing', async () => {
+    await fakeBrowser.storage.local.remove(`danmaku:${pageId}`);
+    const status = await controller.handleMessage({ type: 'reload' });
+    expect(status.entry).toBeNull();
   });
 
   it('keeps loop playback time when appearance settings change', async () => {
     // A comment at 30 s makes the loop 38 s long, so 20 s does not wrap.
-    await saveEntry({ urlKey: PAGE, title: 'A', fileName: 'a.json' }, [
-      ...comments,
-      { time: 30, text: 'late', mode: 'scroll', color: '#ffffff' },
-    ]);
+    await seed(PAGE, 'a.json', [...comments, { time: 30, text: 'late', mode: 'scroll', color: '#ffffff' }]);
     await controller.reload();
     vi.useFakeTimers();
     controller.toggle();
@@ -201,12 +301,12 @@ describe('Controller', () => {
   });
 
   it('reaches every comment in loop mode with a negative offset', async () => {
-    await saveEntry({ urlKey: PAGE, title: 'A', fileName: 'a.json' }, [
+    await seed(PAGE, 'a.json', [
       { time: 0, text: 'a', mode: 'scroll', color: '#ffffff' },
       { time: 10, text: 'b', mode: 'scroll', color: '#ffffff' },
     ]);
     await controller.reload();
-    await setOffset(PAGE, -10);
+    await setPageOffset(PAGE, await bindingIdOf(PAGE), -10);
     await controller.reload();
     vi.useFakeTimers();
     controller.toggle();
@@ -217,12 +317,12 @@ describe('Controller', () => {
   });
 
   it('waits for a load already in progress for the same URL', async () => {
-    await saveEntry({ urlKey: 'https://b.com/', title: 'B', fileName: 'b.xml' }, comments);
-    url = 'https://b.com/';
+    await seed(OTHER, 'b.xml', comments);
+    url = OTHER;
     const navigating = controller.checkUrl();
     const status = await controller.handleMessage({ type: 'getStatus' });
     await navigating;
-    expect(status.entry).toMatchObject({ fileName: 'b.xml' });
+    expect(status.entry).toMatchObject({ name: 'b.xml' });
   });
 
   it('rejects changes meant for another page', async () => {
@@ -250,6 +350,73 @@ describe('Controller', () => {
     release();
     await older;
     expect(controller.status().entry).toBeNull();
+  });
+
+  it('answers a reload only once the newest overlapping reload has been applied', async () => {
+    // A popup's reload message and the storage event for the same change both reload the page;
+    // the message's reply must not be computed before the newer reload is in.
+    const other = await addDanmaku({ fileName: 'other.xml' }, comments.slice(0, 1));
+    await bindPage(PAGE, other, 'A');
+    const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
+    const open = () => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      return { gate, release };
+    };
+    let current = open();
+    vi.spyOn(fakeBrowser.storage.local, 'get').mockImplementation(async (keys) => {
+      const mine = current.gate;
+      const result = await get(keys);
+      await mine;
+      return result;
+    });
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+
+    // The message's reload starts first and waits on its reads.
+    const first = current;
+    let replied = false;
+    const reply = controller.handleMessage({ type: 'reload' }).then((status) => {
+      replied = true;
+      return status;
+    });
+    await flush();
+    // The storage event starts a newer reload, whose reads wait on a second gate.
+    current = open();
+    const second = current;
+    const changed = controller.onStorageChanged(
+      bindingChange(PAGE, { danmakuId: pageId, offset: 0 }, { danmakuId: other, offset: 0 }),
+    );
+    await flush();
+
+    first.release(); // The older reload finishes and finds itself superseded.
+    await flush();
+    expect(replied).toBe(false); // ...so the reply waits for the newest one.
+    second.release();
+    await changed;
+    expect((await reply).entry).toMatchObject({ id: other, name: 'other.xml' });
+  });
+
+  it('keeps a rename that arrives while an older reload is still reading', async () => {
+    controller.toggle();
+    // Hold a reload right after it has read the library, so its snapshot has the old name.
+    const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const spy = vi.spyOn(fakeBrowser.storage.local, 'get').mockImplementation(async (keys) => {
+      const result = await get(keys);
+      if (JSON.stringify(keys) === '"library"' || JSON.stringify(keys).includes('"library"')) await gate;
+      return result;
+    });
+    const reloading = controller.reload();
+    await new Promise((r) => setTimeout(r, 0));
+    spy.mockRestore();
+
+    const before = await listLibrary();
+    await renameDanmaku(pageId, 'Episode 1');
+    await controller.onStorageChanged({ library: { oldValue: before, newValue: await listLibrary() } });
+    release();
+    await reloading;
+    expect(controller.status().entry).toMatchObject({ id: pageId, name: 'Episode 1' });
   });
 
   it('reports video mode right after enabling over a playing video', () => {

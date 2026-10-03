@@ -2,10 +2,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { storage } from 'wxt/utils/storage';
 import { type Comment, DEFAULT_SETTINGS } from '../core/types';
-import { deleteEntry, getEntry, getSettings, hasEntry, listEntries, saveEntry, setOffset } from './store';
+import {
+  addDanmaku,
+  bindPage,
+  deleteDanmaku,
+  getBindings,
+  getPageDanmaku,
+  getSettings,
+  listLibrary,
+  renameDanmaku,
+  setPageOffset,
+  unbindPage,
+} from './store';
 
 const comments: Comment[] = [{ time: 1, text: 'a', mode: 'scroll', color: '#ffffff' }];
-const meta = { urlKey: 'https://a.com/p?v=1', title: 'Page', fileName: 'a.xml' };
 
 beforeEach(() => {
   fakeBrowser.reset();
@@ -26,123 +36,222 @@ describe('settings', () => {
   });
 });
 
-describe('entries', () => {
-  it('saves comments with a zero offset and indexes them', async () => {
-    await saveEntry(meta, comments);
-    expect(await getEntry(meta.urlKey)).toEqual({ offset: 0, comments });
-    const [index] = await listEntries();
-    expect(index).toMatchObject({ ...meta, count: 1 });
-    expect(typeof index?.importedAt).toBe('number');
-    expect(await hasEntry(meta.urlKey)).toBe(true);
+describe('library', () => {
+  /** The id of a page's binding, which offset writes must name. */
+  const bid = async (urlKey: string) => (await getBindings())[urlKey]!.id;
+  const A = 'https://a.com/watch?v=1';
+  const B = 'https://b.com/ep1';
+  const more: Comment[] = [...comments, { time: 5, text: 'b', mode: 'top', color: '#ff0000' }];
+
+  it('saves a danmaku under its own id, named after the file', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments);
+    const [row] = await listLibrary();
+    expect(row).toMatchObject({ id, name: 'a.xml', fileName: 'a.xml', count: 1 });
+    expect(typeof row?.addedAt).toBe('number');
+    expect(await storage.getItem(`local:danmaku:${id}`)).toEqual({ comments });
+    expect(await getBindings()).toEqual({});
   });
 
-  it('replaces an existing entry for the same URL', async () => {
-    await saveEntry(meta, comments);
-    await setOffset(meta.urlKey, 3);
-    await saveEntry({ ...meta, fileName: 'b.json' }, [...comments, ...comments]);
-    expect(await listEntries()).toHaveLength(1);
-    expect((await listEntries())[0]).toMatchObject({ fileName: 'b.json', count: 2 });
-    expect((await getEntry(meta.urlKey))?.offset).toBe(0);
+  it('gives every danmaku its own id, even for the same file', async () => {
+    const first = await addDanmaku({ fileName: 'a.xml' }, comments);
+    const second = await addDanmaku({ fileName: 'a.xml' }, comments);
+    expect(first).not.toBe(second);
+    expect(await listLibrary()).toHaveLength(2);
   });
 
-  it('persists the offset', async () => {
-    await saveEntry(meta, comments);
-    await setOffset(meta.urlKey, -2.5);
-    expect((await getEntry(meta.urlKey))?.offset).toBe(-2.5);
+  it('binds a page when adding for it, with offset 0', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'Page A' });
+    expect((await getBindings())[A]).toEqual({ id: expect.any(String), danmakuId: id, offset: 0, title: 'Page A' });
+    expect(await getPageDanmaku(A)).toEqual({ id, bindingId: await bid(A), name: 'a.xml', offset: 0, comments });
   });
 
-  it('never writes old comments back when an offset change races a replacing import', async () => {
-    await saveEntry(meta, comments);
-    const fresh: Comment[] = [{ time: 9, text: 'new', mode: 'scroll', color: '#ffffff' }];
-    await Promise.all([setOffset(meta.urlKey, 4), saveEntry({ ...meta, fileName: 'new.xml' }, fresh)]);
-    expect((await getEntry(meta.urlKey))?.comments).toEqual(fresh);
+  it('has no danmaku for a page without a binding', async () => {
+    await addDanmaku({ fileName: 'a.xml' }, comments);
+    expect(await getPageDanmaku(A)).toBeNull();
   });
 
-  it('stores the offset apart from the comments', async () => {
-    await saveEntry(meta, comments);
-    await setOffset(meta.urlKey, 2);
-    expect(await storage.getItem(`local:offset:${meta.urlKey}`)).toBe(2);
-    expect(await storage.getItem(`local:danmaku:${meta.urlKey}`)).toEqual({ comments });
+  it('has no danmaku when the bound comments are missing', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    await storage.removeItem(`local:danmaku:${id}`);
+    expect(await getPageDanmaku(A)).toBeNull();
   });
 
-  it('reads entries saved with the offset inside', async () => {
-    await saveEntry(meta, comments);
-    await storage.setItem(`local:danmaku:${meta.urlKey}`, { offset: 3, comments });
-    expect((await getEntry(meta.urlKey))?.offset).toBe(3);
+  it('lets several pages share one danmaku, each with its own offset', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    await bindPage(B, id, 'B');
+    await setPageOffset(A, await bid(A), 2);
+    await setPageOffset(B, await bid(B), -4);
+    expect((await getPageDanmaku(A))?.offset).toBe(2);
+    expect((await getPageDanmaku(B))?.offset).toBe(-4);
+    expect(await listLibrary()).toHaveLength(1);
   });
 
-  it('ignores an offset for a missing entry', async () => {
-    await setOffset('https://none.com/', 1);
-    expect(await getEntry('https://none.com/')).toBeNull();
+  it('replaces a page binding with offset 0 and keeps the previous danmaku', async () => {
+    const first = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    await setPageOffset(A, await bid(A), 3);
+    const second = await addDanmaku({ fileName: 'b.xml' }, more, { urlKey: A, title: 'A' });
+    expect((await getBindings())[A]).toMatchObject({ danmakuId: second, offset: 0 });
+    expect((await listLibrary()).map((e) => e.id)).toEqual([first, second]);
+    expect(await getPageDanmaku(A)).toMatchObject({ id: second, comments: more });
   });
 
-  it('keeps every index row when saves run concurrently', async () => {
-    const other = { ...meta, urlKey: 'https://b.com/' };
-    await Promise.all([saveEntry(meta, comments), saveEntry(other, comments)]);
-    expect((await listEntries()).map((e) => e.urlKey).sort()).toEqual(['https://a.com/p?v=1', 'https://b.com/']);
+  it('keeps the offset when binding the danmaku a page already uses', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    await setPageOffset(A, await bid(A), 3);
+    await bindPage(A, id, 'A');
+    expect((await getBindings())[A]).toMatchObject({ offset: 3 });
   });
 
-  it('removes every index row when deletes run concurrently', async () => {
-    const other = { ...meta, urlKey: 'https://b.com/' };
-    await saveEntry(meta, comments);
-    await saveEntry(other, comments);
-    await Promise.all([deleteEntry(meta.urlKey), deleteEntry(other.urlKey)]);
-    expect(await listEntries()).toEqual([]);
+  it('ignores binding a danmaku that is gone', async () => {
+    await bindPage(A, 'missing', 'A');
+    expect(await getBindings()).toEqual({});
   });
 
-  it('stays consistent when a replacing import and a delete of the same URL overlap', async () => {
-    await saveEntry(meta, comments);
-    // Hold the import right after its comments are written, as a slow storage reply would.
-    const set = fakeBrowser.storage.local.set.bind(fakeBrowser.storage.local);
-    let release!: () => void;
-    const gate = new Promise<void>((r) => (release = r));
-    vi.spyOn(fakeBrowser.storage.local, 'set').mockImplementation(async (items) => {
-      await set(items);
-      if (`danmaku:${meta.urlKey}` in items) await gate;
-    });
-    const flush = () => new Promise((r) => setTimeout(r, 0));
-    const importing = saveEntry({ ...meta, fileName: 'new.json' }, comments);
-    await flush();
-    const deleting = deleteEntry(meta.urlKey);
-    await flush();
-    release();
-    await Promise.all([importing, deleting]);
-    expect(await hasEntry(meta.urlKey)).toBe((await getEntry(meta.urlKey)) !== null);
+  it('unbinds only that page', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    await bindPage(B, id, 'B');
+    await unbindPage(A);
+    expect(Object.keys(await getBindings())).toEqual([B]);
+    expect(await listLibrary()).toHaveLength(1);
+    await unbindPage('https://none.com/');
+    expect(Object.keys(await getBindings())).toEqual([B]);
   });
 
-  it('does not let an offset write straddle a replacing import', async () => {
-    await saveEntry(meta, comments);
-    // Hold the offset write after it has checked that the entry exists.
+  it('renames a danmaku, trimming, and ignores an empty name', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments);
+    await renameDanmaku(id, '  Episode 1  ');
+    expect((await listLibrary())[0]).toMatchObject({ name: 'Episode 1', fileName: 'a.xml' });
+    await renameDanmaku(id, '   ');
+    expect((await listLibrary())[0]?.name).toBe('Episode 1');
+  });
+
+  it('deletes a danmaku with its comments and every binding to it, leaving others', async () => {
+    const gone = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    await bindPage(B, gone, 'B');
+    const kept = await addDanmaku({ fileName: 'b.xml' }, more, { urlKey: 'https://c.com/', title: 'C' });
+    await deleteDanmaku(gone);
+    expect((await listLibrary()).map((e) => e.id)).toEqual([kept]);
+    expect(Object.keys(await getBindings())).toEqual(['https://c.com/']);
+    expect(await storage.getItem(`local:danmaku:${gone}`)).toBeNull();
+    expect(await getPageDanmaku(A)).toBeNull();
+  });
+
+  it('ignores an offset for a page without a binding', async () => {
+    await setPageOffset(A, 'x', 1);
+    expect(await getBindings()).toEqual({});
+  });
+
+  it('ignores an offset meant for a binding the page no longer has', async () => {
+    await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const old = await bid(A);
+    const second = await addDanmaku({ fileName: 'b.xml' }, comments, { urlKey: A, title: 'A' });
+    await setPageOffset(A, old, 2); // A write that was queued before the page switched danmaku.
+    expect((await getBindings())[A]).toMatchObject({ danmakuId: second, offset: 0 });
+    await setPageOffset(A, await bid(A), 2);
+    expect((await getBindings())[A]).toMatchObject({ danmakuId: second, offset: 2 });
+  });
+
+  it('ignores an offset meant for a binding that was removed and made again for the same danmaku', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const old = await bid(A);
+    await unbindPage(A);
+    await bindPage(A, id, 'A');
+    expect(await bid(A)).not.toBe(old);
+    await setPageOffset(A, old, 2);
+    expect((await getBindings())[A]).toMatchObject({ danmakuId: id, offset: 0 });
+  });
+
+  it('keeps the binding id when binding the danmaku a page already uses', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const before = await bid(A);
+    await bindPage(A, id, 'A');
+    expect(await bid(A)).toBe(before);
+  });
+
+  it('keeps every row when adds run concurrently', async () => {
+    await Promise.all([
+      addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' }),
+      addDanmaku({ fileName: 'b.xml' }, comments, { urlKey: B, title: 'B' }),
+      addDanmaku({ fileName: 'c.xml' }, comments),
+    ]);
+    expect((await listLibrary()).map((e) => e.fileName).sort()).toEqual(['a.xml', 'b.xml', 'c.xml']);
+    expect(Object.keys(await getBindings()).sort()).toEqual([A, B]);
+  });
+
+  it('removes every row when deletes run concurrently', async () => {
+    const first = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const second = await addDanmaku({ fileName: 'b.xml' }, comments, { urlKey: B, title: 'B' });
+    await Promise.all([deleteDanmaku(first), deleteDanmaku(second)]);
+    expect(await listLibrary()).toEqual([]);
+    expect(await getBindings()).toEqual({});
+  });
+
+  it('never leaves a binding to a deleted danmaku when a bind and a delete overlap', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments);
+    await Promise.all([bindPage(A, id, 'A'), deleteDanmaku(id)]);
+    const bound = Object.values(await getBindings()).filter((b) => b.danmakuId === id);
+    const exists = (await listLibrary()).some((e) => e.id === id);
+    expect(bound.length > 0).toBe(exists);
+  });
+
+  it('does not let an offset write straddle a rebind', async () => {
+    const first = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const firstBinding = await bid(A);
+    const second = await addDanmaku({ fileName: 'b.xml' }, comments);
+    // Hold the offset write right after it has read the bindings.
     const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
     let release!: () => void;
     const gate = new Promise<void>((r) => (release = r));
     let held = false;
     vi.spyOn(fakeBrowser.storage.local, 'get').mockImplementation(async (keys) => {
       const result = await get(keys);
-      if (!held && JSON.stringify(keys).includes('index')) {
+      if (!held && JSON.stringify(keys).includes('bindings')) {
         held = true;
         await gate;
       }
       return result;
     });
     const flush = () => new Promise((r) => setTimeout(r, 0));
-    const offsetting = setOffset(meta.urlKey, 4);
+    const offsetting = setPageOffset(A, firstBinding, 4);
     await flush();
-    const importing = saveEntry({ ...meta, fileName: 'new.json' }, comments);
+    const rebinding = bindPage(A, second, 'A');
     await flush();
     release();
-    await Promise.all([offsetting, importing]);
-    // Serialized: the offset lands first, then the import resets it.
-    expect((await getEntry(meta.urlKey))?.offset).toBe(0);
+    await Promise.all([offsetting, rebinding]);
+    // Serialized: the offset lands on the first danmaku, then the rebind resets it.
+    expect((await getBindings())[A]).toMatchObject({ danmakuId: second, offset: 0 });
+    expect(first).not.toBe(second);
   });
 
-  it('deletes the entry and its index row', async () => {
-    await saveEntry(meta, comments);
-    await setOffset(meta.urlKey, 1);
-    await deleteEntry(meta.urlKey);
-    expect(await getEntry(meta.urlKey)).toBeNull();
-    expect(await storage.getItem(`local:offset:${meta.urlKey}`)).toBeNull();
-    expect(await listEntries()).toEqual([]);
-    expect(await hasEntry(meta.urlKey)).toBe(false);
+  describe('write order', () => {
+    /** The storage keys written or removed, in order. */
+    const record = () => {
+      const keys: string[] = [];
+      const set = fakeBrowser.storage.local.set.bind(fakeBrowser.storage.local);
+      const remove = fakeBrowser.storage.local.remove.bind(fakeBrowser.storage.local);
+      vi.spyOn(fakeBrowser.storage.local, 'set').mockImplementation(async (items) => {
+        keys.push(...Object.keys(items).map((k) => (k.startsWith('danmaku:') ? 'comments' : k)));
+        await set(items);
+      });
+      vi.spyOn(fakeBrowser.storage.local, 'remove').mockImplementation(async (k) => {
+        const removed: string[] = Array.isArray(k) ? k : [k];
+        keys.push(...removed.map((x) => (x.startsWith('danmaku:') ? 'comments' : x)));
+        await remove(k);
+      });
+      return keys;
+    };
+
+    it('adds comments first, then the library row, then the binding', async () => {
+      const keys = record();
+      await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+      expect(keys).toEqual(['comments', 'library', 'bindings']);
+    });
+
+    it('deletes the bindings first, then the library row, then the comments', async () => {
+      const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+      const keys = record();
+      await deleteDanmaku(id);
+      expect(keys).toEqual(['bindings', 'library', 'comments']);
+    });
   });
 });
