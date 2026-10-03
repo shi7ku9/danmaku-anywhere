@@ -74,6 +74,9 @@ They exist independently of any page; a page *uses* one of them (see
     removes the danmaku and all its bindings.
 - Using, unbinding and deleting update the current page at once: its status
   and the page card refresh without waiting for the storage change to arrive.
+- The list is redrawn whenever the page or the danmaku it uses changes (for
+  example when the site navigates while the popup is open), so "In use" and the
+  current-page mark always match the page card.
 
 ## Advanced style
 

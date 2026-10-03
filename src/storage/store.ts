@@ -130,10 +130,16 @@ export async function deleteDanmaku(id: string): Promise<void> {
   });
 }
 
-/** Sets a page's offset on its binding; a page without one is ignored. */
-export async function setPageOffset(urlKey: string, offset: number): Promise<void> {
+/**
+ * Sets a page's offset on its binding. `danmakuId` is the danmaku the offset was
+ * set for: a write queued before the page switched to another danmaku (whose
+ * binding starts at 0) is ignored rather than applied to the new one.
+ */
+export async function setPageOffset(urlKey: string, danmakuId: string, offset: number): Promise<void> {
   await exclusive(async () => {
     const binding = (await getBindings())[urlKey];
-    if (binding) await updateBindings((all) => ({ ...all, [urlKey]: { ...binding, offset } }));
+    if (binding?.danmakuId === danmakuId) {
+      await updateBindings((all) => ({ ...all, [urlKey]: { ...binding, offset } }));
+    }
   });
 }

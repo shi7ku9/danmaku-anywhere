@@ -67,6 +67,7 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  document.body.innerHTML = '';
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -112,6 +113,7 @@ describe('popup', () => {
   });
 
   it('imports for the page it is on after overlapping refreshes', async () => {
+    await openPopup();
     const create = vi.spyOn(browser.windows, 'create').mockResolvedValue({} as never);
     page = B;
     holding = true;
@@ -126,6 +128,40 @@ describe('popup', () => {
     await vi.waitFor(() => expect(create).toHaveBeenCalledOnce());
     const url = new URL(create.mock.calls[0]![0]!.url as string, 'chrome-extension://x/');
     expect(url.searchParams.get('urlKey')).toBe(B);
+  });
+
+  it('does not apply a queued offset write to a danmaku used afterwards', async () => {
+    const idX = await addDanmaku({ fileName: 'x.xml' }, []);
+    await openPopup();
+    await vi.waitFor(() => expect($('page').textContent).toBe('a.xml'));
+    // Hold the first offset write, so the second stays queued behind it.
+    const set = fakeBrowser.storage.local.set.bind(fakeBrowser.storage.local);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    let held = false;
+    vi.spyOn(fakeBrowser.storage.local, 'set').mockImplementation(async (items) => {
+      await set(items);
+      if (!held && 'bindings' in items) {
+        held = true;
+        await gate;
+      }
+    });
+    $('offset-plus').click();
+    await vi.waitFor(() => expect(held).toBe(true));
+    $('offset-plus').click();
+    await vi.waitFor(() => expect(($('offset') as HTMLInputElement).value).toBe('2'));
+
+    // Meanwhile another danmaku is used on the page.
+    const row = [...document.querySelectorAll<HTMLElement>('#library > .lib-row')].find(
+      (r) => r.querySelector('.name')?.textContent === 'x.xml',
+    )!;
+    row.querySelector<HTMLElement>('.use')!.click();
+    await new Promise((r) => setTimeout(r, 20));
+    release();
+
+    await vi.waitFor(async () => expect((await getBindings())[A]?.danmakuId).toBe(idX));
+    await new Promise((r) => setTimeout(r, 50)); // Let the queued write run.
+    expect((await getBindings())[A]).toMatchObject({ danmakuId: idX, offset: 0 });
   });
 
   describe('library', () => {
@@ -284,6 +320,36 @@ describe('popup', () => {
       await vi.waitFor(() => expect(renameField()).toBeNull());
       expect((await listLibrary()).map((e) => e.name).sort()).toEqual(['a.xml', 'b.xml']);
       expect(rows().map(nameOf).sort()).toEqual(['a.xml', 'b.xml']);
+    });
+
+    it('updates "In use" and the current-page mark when the page changes', async () => {
+      await bindPage(B, idA, titles[B]!);
+      await openPopup();
+      click(rowOf('a.xml'), '.link');
+      await vi.waitFor(() => expect(rowOf('a.xml').querySelectorAll('.pages li')).toHaveLength(2));
+      const use = (name: string) => rowOf(name).querySelector<HTMLButtonElement>('.use')!;
+      const here = () =>
+        [...rowOf('a.xml').querySelectorAll('.pages li')].map((p) => p.querySelector('strong')?.textContent);
+      expect(use('a.xml')).toMatchObject({ textContent: 'In use', disabled: true });
+      expect(here()).toEqual(['Page A (this page)', 'Page B']);
+
+      // The site navigates from A to B; the popup notices on its next refresh.
+      page = B;
+      $('video').dispatchEvent(new Event('focus'));
+      await vi.waitFor(() => expect(here()).toEqual(['Page A', 'Page B (this page)']));
+      expect(use('a.xml')).toMatchObject({ textContent: 'In use', disabled: true }); // B uses a.xml too.
+      expect(use('b.xml')).toMatchObject({ textContent: 'Use', disabled: false }); // B no longer uses b.xml.
+    });
+
+    it('lets the danmaku a page used before be used again after the page changes', async () => {
+      await openPopup();
+      const use = (name: string) => rowOf(name).querySelector<HTMLButtonElement>('.use')!;
+      expect(use('a.xml').disabled).toBe(true);
+      page = B;
+      $('video').dispatchEvent(new Event('focus'));
+      await vi.waitFor(() => expect($('page').textContent).toBe('b.xml'));
+      await vi.waitFor(() => expect(use('a.xml')).toMatchObject({ textContent: 'Use', disabled: false }));
+      expect(use('b.xml')).toMatchObject({ textContent: 'In use', disabled: true });
     });
 
     it('opens the import window without a page for "Add file…"', async () => {

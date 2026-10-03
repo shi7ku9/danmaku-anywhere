@@ -65,6 +65,7 @@ beforeEach(async () => {
 afterEach(() => {
   controller.setEnabled(false);
   vi.useRealTimers();
+  vi.restoreAllMocks(); // Storage spies from one test must not wrap those of the next.
 });
 
 describe('Controller', () => {
@@ -242,8 +243,8 @@ describe('Controller', () => {
 
   it('keeps a separate offset per page that shares a danmaku', async () => {
     await bindPage(OTHER, pageId, 'B');
-    await setPageOffset(PAGE, 2);
-    await setPageOffset(OTHER, -4);
+    await setPageOffset(PAGE, pageId, 2);
+    await setPageOffset(OTHER, pageId, -4);
     await controller.reload();
     expect(controller.status().entry).toMatchObject({ id: pageId, offset: 2 });
     url = OTHER;
@@ -279,12 +280,12 @@ describe('Controller', () => {
   });
 
   it('reaches every comment in loop mode with a negative offset', async () => {
-    await seed(PAGE, 'a.json', [
+    const id = await seed(PAGE, 'a.json', [
       { time: 0, text: 'a', mode: 'scroll', color: '#ffffff' },
       { time: 10, text: 'b', mode: 'scroll', color: '#ffffff' },
     ]);
     await controller.reload();
-    await setPageOffset(PAGE, -10);
+    await setPageOffset(PAGE, id, -10);
     await controller.reload();
     vi.useFakeTimers();
     controller.toggle();
@@ -372,6 +373,29 @@ describe('Controller', () => {
     second.release();
     await changed;
     expect((await reply).entry).toMatchObject({ id: other, name: 'other.xml' });
+  });
+
+  it('keeps a rename that arrives while an older reload is still reading', async () => {
+    controller.toggle();
+    // Hold a reload right after it has read the library, so its snapshot has the old name.
+    const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const spy = vi.spyOn(fakeBrowser.storage.local, 'get').mockImplementation(async (keys) => {
+      const result = await get(keys);
+      if (JSON.stringify(keys) === '"library"' || JSON.stringify(keys).includes('"library"')) await gate;
+      return result;
+    });
+    const reloading = controller.reload();
+    await new Promise((r) => setTimeout(r, 0));
+    spy.mockRestore();
+
+    const before = await listLibrary();
+    await renameDanmaku(pageId, 'Episode 1');
+    await controller.onStorageChanged({ library: { oldValue: before, newValue: await listLibrary() } });
+    release();
+    await reloading;
+    expect(controller.status().entry).toMatchObject({ id: pageId, name: 'Episode 1' });
   });
 
   it('reports video mode right after enabling over a playing video', () => {

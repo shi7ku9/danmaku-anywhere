@@ -125,8 +125,9 @@ through `storage.onChanged`, looking only at its own page and danmaku:
   disappearing, reloads it (the binding is written last, so the comments are in
   place); a changed `offset` alone is applied in place, keeping playback.
 - **Its danmaku's `library` row**: a changed `name` alone is updated in place,
-  without clearing the screen. Deleting the danmaku removes the binding first,
-  which the `bindings` rule above handles.
+  without clearing the screen. The latest names seen are kept, so a reload that
+  read the library before a rename cannot bring the old name back. Deleting the
+  danmaku removes the binding first, which the `bindings` rule above handles.
 
 Every library change (add, rename, delete, bind, unbind, offset) runs under one
 Web Lock (`danmaku-library`) covering the danmaku, the `library` row and the

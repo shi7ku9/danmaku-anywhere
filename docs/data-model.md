@@ -102,7 +102,9 @@ connects a page to one of them.
 - The **offset** (seconds, may be negative) is stored on the binding, because a
   sync offset describes one danmaku against one video, and the same danmaku may
   need a different offset on each page. A new binding starts at 0. Binding the
-  danmaku a page already uses changes nothing.
+  danmaku a page already uses changes nothing. An offset write names the danmaku
+  it was set for and is ignored if the page has switched to another one since, so
+  a write still queued from before cannot land on the new binding.
 - `title` is the page's `document.title` when it was bound, shown in the
   library's list of pages using a danmaku.
 - **Deleting** a danmaku removes it and every binding to it; **unbinding** removes

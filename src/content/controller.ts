@@ -35,6 +35,8 @@ export class Controller {
   private loadVersion = 0;
   /** The newest reload, which an older one waits for when it is superseded. */
   private newestReload: Promise<void> = Promise.resolve();
+  /** Danmaku names from the latest library change seen, so a reload that read older ones can't undo a rename. */
+  private names = new Map<string, string>();
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -64,11 +66,11 @@ export class Controller {
    */
   async onStorageChanged(changes: Record<string, { oldValue?: unknown; newValue?: unknown }>): Promise<void> {
     const library = changes.library;
-    if (this.entry && library) {
-      const name = (value: unknown) =>
-        (value as LibraryEntry[] | undefined)?.find((e) => e.id === this.entry?.id)?.name;
-      const renamed = name(library.newValue);
-      if (renamed !== undefined && renamed !== name(library.oldValue)) this.entry.name = renamed;
+    if (library) {
+      const rows = Array.isArray(library.newValue) ? (library.newValue as LibraryEntry[]) : [];
+      this.names = new Map(rows.map((e) => [e.id, e.name]));
+      const renamed = this.entry && this.names.get(this.entry.id);
+      if (this.entry && renamed) this.entry.name = renamed;
     }
 
     const bindings = changes.bindings;
@@ -118,6 +120,9 @@ export class Controller {
     // A newer reload (or a URL change, which reloads) started meanwhile: it applies its own
     // result, and this one waits for it instead of returning while that state is still old.
     if (version !== this.loadVersion) return this.newestReload;
+    // A rename seen while this was reading is newer than the name it read.
+    const renamed = entry && this.names.get(entry.id);
+    if (entry && renamed) entry.name = renamed;
     this.entry = entry;
     this.renderer.setComments(this.entry?.comments ?? []);
     this.clock = null;

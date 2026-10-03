@@ -24,17 +24,19 @@ let status: Status | null = null;
 let offset = createOffsetSender(0, async () => {});
 
 /**
- * Takes a fresh status. When the page's key changed (e.g. the site moved to the
- * next video), the offset sender restarts from the new page's offset; each
- * sender only ever writes to the key it was created for.
+ * Takes a fresh status. When the page or its danmaku changed (e.g. the site moved
+ * to the next video, or another danmaku was used), the offset sender restarts from
+ * the new offset. Each sender only ever writes for the page and danmaku it was
+ * created for; the store ignores a write whose danmaku is no longer the page's.
  */
 function adopt(next: Status | null): void {
-  if (next?.urlKey !== status?.urlKey) {
+  if (next?.urlKey !== status?.urlKey || next?.entry?.id !== status?.entry?.id) {
     const key = next?.urlKey;
+    const id = next?.entry?.id;
     offset = createOffsetSender(next?.entry?.offset ?? 0, async (value) => {
       // Written here, under the library lock shared with import windows; the
       // page's content script picks it up through storage.onChanged.
-      if (key) await setPageOffset(key, value);
+      if (key && id) await setPageOffset(key, id, value);
       await refresh();
     });
   } else if (next?.entry) {
@@ -110,6 +112,21 @@ function renderStatus(): void {
   $('offset-row').hidden = !entry;
   // The local value leads while offset changes are still in flight.
   if (entry) $<HTMLInputElement>('offset').value = String(offset.value);
+
+  syncLibrary();
+}
+
+let libraryReady = false;
+/** What the library list was last drawn for: which page, and which danmaku it uses. */
+let libraryShown = '';
+
+const libraryKey = () => `${status?.urlKey ?? ''}|${status?.entry?.id ?? ''}`;
+
+/** Redraws the library when the page or its danmaku changed, so "In use" and the page mark follow. */
+function syncLibrary(): void {
+  if (!libraryReady || libraryKey() === libraryShown) return;
+  libraryShown = libraryKey();
+  void renderLibrary();
 }
 
 type NumericKey = { [K in keyof Settings]: number extends Settings[K] ? K : never }[keyof Settings];
@@ -467,6 +484,8 @@ async function main(): Promise<void> {
     },
     openImport: () => openImport(),
   });
+  libraryReady = true;
+  libraryShown = libraryKey();
   await renderLibrary();
 }
 
