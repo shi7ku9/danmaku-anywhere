@@ -24,19 +24,20 @@ let status: Status | null = null;
 let offset = createOffsetSender(0, async () => {});
 
 /**
- * Takes a fresh status. When the page or its danmaku changed (e.g. the site moved
- * to the next video, or another danmaku was used), the offset sender restarts from
- * the new offset. Each sender only ever writes for the page and danmaku it was
- * created for; the store ignores a write whose danmaku is no longer the page's.
+ * Takes a fresh status. When the page or its binding changed (e.g. the site moved
+ * to the next video, or a danmaku was used, even the same one again), the offset
+ * sender restarts from the new offset. Each sender only ever writes for the page
+ * and binding it was created for; the store ignores a write whose binding is no
+ * longer the page's, including writes the old sender still has queued.
  */
 function adopt(next: Status | null): void {
-  if (next?.urlKey !== status?.urlKey || next?.entry?.id !== status?.entry?.id) {
+  if (next?.urlKey !== status?.urlKey || next?.entry?.bindingId !== status?.entry?.bindingId) {
     const key = next?.urlKey;
-    const id = next?.entry?.id;
+    const id = next?.entry?.bindingId;
     offset = createOffsetSender(next?.entry?.offset ?? 0, async (value) => {
       // Written here, under the library lock shared with import windows; the
       // page's content script picks it up through storage.onChanged.
-      if (key && id) await setPageOffset(key, id, value);
+      if (key && id !== undefined) await setPageOffset(key, id, value);
       await refresh();
     });
   } else if (next?.entry) {

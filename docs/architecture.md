@@ -106,8 +106,9 @@ URL key changes.
 | import / popup → content | `reload` | — |
 
 Every message is answered with a `Status`:
-`{ urlKey, title, entry: { id, name, count, offset } | null, enabled, mode, videos, choice, autoTargetId }`.
-`entry` describes the danmaku bound to the page (`id` is its library id).
+`{ urlKey, title, entry: { id, bindingId, name, count, offset } | null, enabled, mode, videos, choice, autoTargetId }`.
+`entry` describes the danmaku bound to the page: `id` is its library id and
+`bindingId` identifies the page's binding, which the popup's offset writes name.
 
 - `videos`: the page's videos with a non-zero size, in document order, each
   `{ id, width, height, playing, currentTime, duration }`.
@@ -121,9 +122,10 @@ Global settings changes are not messaged; the content script watches the
 `settings` storage key and applies changes live. It also follows the library
 through `storage.onChanged`, looking only at its own page and danmaku:
 
-- **Its `bindings` row** (the page's URL key): a different `danmakuId`, or the row
-  disappearing, reloads it (the binding is written last, so the comments are in
-  place); a changed `offset` alone is applied in place, keeping playback.
+- **Its `bindings` row** (the page's URL key): a different binding (a different
+  `id` or `danmakuId`, or the row disappearing) reloads it, since the binding is
+  written last, so the comments are in place, and a new binding carries its own
+  offset; a changed `offset` alone is applied in place, keeping playback.
 - **Its danmaku's `library` row**: a changed `name` alone is updated in place,
   without clearing the screen. The latest names seen are kept, so a reload that
   read the library before a rename cannot bring the old name back. Deleting the

@@ -75,6 +75,11 @@ export interface LibraryEntry {
 
 /** Which danmaku a page uses, and how far it is shifted against that page's video. */
 export interface Binding {
+  /**
+   * Identifies this binding. Unbinding and binding again, even the same danmaku,
+   * makes a new one, so a write meant for the old binding can be told apart.
+   */
+  id: string;
   danmakuId: string;
   /** Seconds added to the clock before lookup; may be negative. */
   offset: number;
@@ -88,6 +93,8 @@ export type Bindings = Record<string, Binding>;
 /** A page's danmaku as the content script uses it. */
 export interface PageDanmaku {
   id: string;
+  /** The binding of the page to this danmaku (see `Binding.id`). */
+  bindingId: string;
   name: string;
   offset: number;
   /** Sorted by time. */

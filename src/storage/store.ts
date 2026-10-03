@@ -59,7 +59,8 @@ export async function getPageDanmaku(urlKey: string): Promise<PageDanmaku | null
   ]);
   const row = library.find((e) => e.id === binding.danmakuId);
   if (!row || !stored) return null;
-  return { id: row.id, name: row.name, offset: binding.offset, comments: stored.comments };
+  // Bindings saved before they had ids read as the empty id, which still matches itself.
+  return { id: row.id, bindingId: binding.id ?? '', name: row.name, offset: binding.offset, comments: stored.comments };
 }
 
 async function updateBindings(update: (bindings: Bindings) => Bindings): Promise<void> {
@@ -74,7 +75,8 @@ async function updateLibrary(update: (library: LibraryEntry[]) => LibraryEntry[]
 async function bind(urlKey: string, danmakuId: string, title: string): Promise<void> {
   const current = (await getBindings())[urlKey];
   if (current?.danmakuId === danmakuId) return;
-  await updateBindings((all) => ({ ...all, [urlKey]: { danmakuId, offset: 0, title } satisfies Binding }));
+  const binding: Binding = { id: crypto.randomUUID(), danmakuId, offset: 0, title };
+  await updateBindings((all) => ({ ...all, [urlKey]: binding }));
 }
 
 /**
@@ -131,14 +133,15 @@ export async function deleteDanmaku(id: string): Promise<void> {
 }
 
 /**
- * Sets a page's offset on its binding. `danmakuId` is the danmaku the offset was
- * set for: a write queued before the page switched to another danmaku (whose
- * binding starts at 0) is ignored rather than applied to the new one.
+ * Sets a page's offset on its binding. `bindingId` is the binding the offset was
+ * set for: a write queued before the page was unbound or bound to another danmaku
+ * (a new binding, which starts at 0), even to the same danmaku again, is ignored
+ * rather than applied to the new one.
  */
-export async function setPageOffset(urlKey: string, danmakuId: string, offset: number): Promise<void> {
+export async function setPageOffset(urlKey: string, bindingId: string, offset: number): Promise<void> {
   await exclusive(async () => {
     const binding = (await getBindings())[urlKey];
-    if (binding?.danmakuId === danmakuId) {
+    if (binding && (binding.id ?? '') === bindingId) {
       await updateBindings((all) => ({ ...all, [urlKey]: { ...binding, offset } }));
     }
   });

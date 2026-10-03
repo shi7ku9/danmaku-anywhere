@@ -4,6 +4,9 @@ import { fakeBrowser } from 'wxt/testing/fake-browser';
 import { addDanmaku, getBindings, listLibrary } from '../../storage/store';
 import html from './index.html?raw';
 
+/** `vi.waitFor` with a longer limit than its 1 s default, so a busy machine does not fail these tests. */
+const waitFor = <T>(callback: () => T | Promise<T>) => vi.waitFor(callback, { timeout: 5000 });
+
 const PAGE = 'https://a.com/watch?v=1';
 const json = JSON.stringify([{ time: 1, text: 'hello' }]);
 
@@ -46,11 +49,16 @@ describe('import window', () => {
     await openWindow(`?urlKey=${encodeURIComponent(PAGE)}&tabId=7&title=Page`);
     expect($('target').textContent).toBe('Page');
     pick(json);
-    await vi.waitFor(() => expect($('message').textContent).toContain('Imported 1, skipped 0.'));
+    await waitFor(() => expect($('message').textContent).toContain('Imported 1, skipped 0.'));
 
     const [row] = await listLibrary();
     expect(row).toMatchObject({ name: 'a.json', fileName: 'a.json', count: 1 });
-    expect((await getBindings())[PAGE]).toEqual({ danmakuId: row?.id, offset: 0, title: 'Page' });
+    expect((await getBindings())[PAGE]).toEqual({
+      id: expect.any(String),
+      danmakuId: row?.id,
+      offset: 0,
+      title: 'Page',
+    });
     expect($('message').textContent).not.toContain('library');
     expect(send).toHaveBeenCalledWith(7, { type: 'reload' });
   });
@@ -59,7 +67,7 @@ describe('import window', () => {
     const old = await addDanmaku({ fileName: 'old.xml' }, [], { urlKey: PAGE, title: 'Page' });
     await openWindow(`?urlKey=${encodeURIComponent(PAGE)}&tabId=7&title=Page`);
     pick(json, 'new.json');
-    await vi.waitFor(() => expect($('message').textContent).toContain('Imported'));
+    await waitFor(() => expect($('message').textContent).toContain('Imported'));
 
     expect(confirm).not.toHaveBeenCalled();
     const library = await listLibrary();
@@ -74,7 +82,7 @@ describe('import window', () => {
     expect($('target').textContent).toBe('the library');
     expect(($('file') as HTMLInputElement).disabled).toBe(false);
     pick(json);
-    await vi.waitFor(() => expect($('message').textContent).toContain('Added to the library.'));
+    await waitFor(() => expect($('message').textContent).toContain('Added to the library.'));
 
     expect(await listLibrary()).toHaveLength(1);
     expect(await getBindings()).toEqual({});
@@ -84,7 +92,7 @@ describe('import window', () => {
   it('shows a parse error and saves nothing', async () => {
     await openWindow('');
     pick('not danmaku at all');
-    await vi.waitFor(() => expect($('message').className).toBe('error'));
+    await waitFor(() => expect($('message').className).toBe('error'));
     expect(await listLibrary()).toEqual([]);
   });
 });

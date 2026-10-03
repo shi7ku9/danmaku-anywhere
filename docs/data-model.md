@@ -84,7 +84,7 @@ fill with Bilibili files.
 |---|---|
 | `library` | `{ id, name, fileName, count, addedAt }[]`: a summary of every saved danmaku, so the popup never loads full comment arrays |
 | `danmaku:<id>` | `{ comments: Comment[] }` |
-| `bindings` | `Record<urlKey, { danmakuId, offset, title }>`: which danmaku each page uses |
+| `bindings` | `Record<urlKey, { id, danmakuId, offset, title }>`: which danmaku each page uses |
 | `settings` | `Settings`: see [Settings](#settings) |
 
 The library holds danmaku **on their own**, independent of any page; a binding
@@ -102,9 +102,11 @@ connects a page to one of them.
 - The **offset** (seconds, may be negative) is stored on the binding, because a
   sync offset describes one danmaku against one video, and the same danmaku may
   need a different offset on each page. A new binding starts at 0. Binding the
-  danmaku a page already uses changes nothing. An offset write names the danmaku
-  it was set for and is ignored if the page has switched to another one since, so
-  a write still queued from before cannot land on the new binding.
+  danmaku a page already uses changes nothing. Every binding has its own `id`;
+  unbinding and binding again, even the same danmaku, makes a new one. An offset
+  write names the binding it was set for and is ignored if the page has a
+  different binding by the time it runs, so a write still queued from before
+  (say, from the popup's offset buttons) cannot land on the new binding.
 - `title` is the page's `document.title` when it was bound, shown in the
   library's list of pages using a danmaku.
 - **Deleting** a danmaku removes it and every binding to it; **unbinding** removes

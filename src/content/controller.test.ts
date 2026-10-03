@@ -24,17 +24,19 @@ const OTHER = 'https://b.com/';
 /** Saves a danmaku and binds it to a page. */
 const seed = (urlKey: string, fileName: string, list: Comment[]) =>
   addDanmaku({ fileName }, list, { urlKey, title: `Title of ${urlKey}` });
-/** The shape of a `bindings` storage change for one page. */
-const bindingChange = (
-  urlKey: string,
-  before: { danmakuId: string; offset: number } | undefined,
-  after: { danmakuId: string; offset: number } | undefined,
-) => ({
-  bindings: {
-    oldValue: before ? { [urlKey]: { ...before, title: 'T' } } : {},
-    newValue: after ? { [urlKey]: { ...after, title: 'T' } } : {},
-  },
-});
+/** The id of a page's binding, which offset writes must name. */
+const bindingIdOf = async (urlKey: string) => (await getBindings())[urlKey]!.id;
+type Row = { danmakuId: string; offset: number; id?: string };
+/** The shape of a `bindings` storage change for one page; unless given, the binding id follows the danmaku. */
+const bindingChange = (urlKey: string, before: Row | undefined, after: Row | undefined) => {
+  const row = (r: Row) => ({ id: `binding-of-${r.danmakuId}`, ...r, title: 'T' });
+  return {
+    bindings: {
+      oldValue: before ? { [urlKey]: row(before) } : {},
+      newValue: after ? { [urlKey]: row(after) } : {},
+    },
+  };
+};
 
 let url: string;
 let pageId: string;
@@ -69,11 +71,11 @@ afterEach(() => {
 });
 
 describe('Controller', () => {
-  it('loads the entry for the page but stays off', () => {
+  it('loads the entry for the page but stays off', async () => {
     expect(controller.status()).toEqual({
       urlKey: PAGE,
       title: 'Title',
-      entry: { id: pageId, name: 'a.json', count: 2, offset: 0 },
+      entry: { id: pageId, bindingId: await bindingIdOf(PAGE), name: 'a.json', count: 2, offset: 0 },
       enabled: false,
       mode: 'loop',
       videos: [],
@@ -191,6 +193,25 @@ describe('Controller', () => {
     expect(controller.status()).toMatchObject({ enabled: true, entry: { id: other, name: 'other.xml', count: 1 } });
   });
 
+  it('reloads when its page is unbound and bound again to the same danmaku', async () => {
+    controller.toggle();
+    await setPageOffset(PAGE, await bindingIdOf(PAGE), 7);
+    await controller.reload();
+    expect(controller.status().entry).toMatchObject({ id: pageId, offset: 7 });
+    const old = await bindingIdOf(PAGE);
+    await unbindPage(PAGE);
+    await bindPage(PAGE, pageId, 'A');
+    // Both changes may reach the page as one: the same danmaku, but a different binding at offset 0.
+    await controller.onStorageChanged(
+      bindingChange(
+        PAGE,
+        { id: old, danmakuId: pageId, offset: 7 },
+        { id: await bindingIdOf(PAGE), danmakuId: pageId, offset: 0 },
+      ),
+    );
+    expect(controller.status().entry).toMatchObject({ id: pageId, offset: 0, bindingId: await bindingIdOf(PAGE) });
+  });
+
   it('unloads when its page is unbound elsewhere', async () => {
     controller.toggle();
     await unbindPage(PAGE);
@@ -243,8 +264,8 @@ describe('Controller', () => {
 
   it('keeps a separate offset per page that shares a danmaku', async () => {
     await bindPage(OTHER, pageId, 'B');
-    await setPageOffset(PAGE, pageId, 2);
-    await setPageOffset(OTHER, pageId, -4);
+    await setPageOffset(PAGE, await bindingIdOf(PAGE), 2);
+    await setPageOffset(OTHER, await bindingIdOf(OTHER), -4);
     await controller.reload();
     expect(controller.status().entry).toMatchObject({ id: pageId, offset: 2 });
     url = OTHER;
@@ -280,12 +301,12 @@ describe('Controller', () => {
   });
 
   it('reaches every comment in loop mode with a negative offset', async () => {
-    const id = await seed(PAGE, 'a.json', [
+    await seed(PAGE, 'a.json', [
       { time: 0, text: 'a', mode: 'scroll', color: '#ffffff' },
       { time: 10, text: 'b', mode: 'scroll', color: '#ffffff' },
     ]);
     await controller.reload();
-    await setPageOffset(PAGE, id, -10);
+    await setPageOffset(PAGE, await bindingIdOf(PAGE), -10);
     await controller.reload();
     vi.useFakeTimers();
     controller.toggle();

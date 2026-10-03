@@ -37,6 +37,8 @@ describe('settings', () => {
 });
 
 describe('library', () => {
+  /** The id of a page's binding, which offset writes must name. */
+  const bid = async (urlKey: string) => (await getBindings())[urlKey]!.id;
   const A = 'https://a.com/watch?v=1';
   const B = 'https://b.com/ep1';
   const more: Comment[] = [...comments, { time: 5, text: 'b', mode: 'top', color: '#ff0000' }];
@@ -59,8 +61,8 @@ describe('library', () => {
 
   it('binds a page when adding for it, with offset 0', async () => {
     const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'Page A' });
-    expect((await getBindings())[A]).toEqual({ danmakuId: id, offset: 0, title: 'Page A' });
-    expect(await getPageDanmaku(A)).toEqual({ id, name: 'a.xml', offset: 0, comments });
+    expect((await getBindings())[A]).toEqual({ id: expect.any(String), danmakuId: id, offset: 0, title: 'Page A' });
+    expect(await getPageDanmaku(A)).toEqual({ id, bindingId: await bid(A), name: 'a.xml', offset: 0, comments });
   });
 
   it('has no danmaku for a page without a binding', async () => {
@@ -77,8 +79,8 @@ describe('library', () => {
   it('lets several pages share one danmaku, each with its own offset', async () => {
     const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
     await bindPage(B, id, 'B');
-    await setPageOffset(A, id, 2);
-    await setPageOffset(B, id, -4);
+    await setPageOffset(A, await bid(A), 2);
+    await setPageOffset(B, await bid(B), -4);
     expect((await getPageDanmaku(A))?.offset).toBe(2);
     expect((await getPageDanmaku(B))?.offset).toBe(-4);
     expect(await listLibrary()).toHaveLength(1);
@@ -86,7 +88,7 @@ describe('library', () => {
 
   it('replaces a page binding with offset 0 and keeps the previous danmaku', async () => {
     const first = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
-    await setPageOffset(A, first, 3);
+    await setPageOffset(A, await bid(A), 3);
     const second = await addDanmaku({ fileName: 'b.xml' }, more, { urlKey: A, title: 'A' });
     expect((await getBindings())[A]).toMatchObject({ danmakuId: second, offset: 0 });
     expect((await listLibrary()).map((e) => e.id)).toEqual([first, second]);
@@ -95,7 +97,7 @@ describe('library', () => {
 
   it('keeps the offset when binding the danmaku a page already uses', async () => {
     const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
-    await setPageOffset(A, id, 3);
+    await setPageOffset(A, await bid(A), 3);
     await bindPage(A, id, 'A');
     expect((await getBindings())[A]).toMatchObject({ offset: 3 });
   });
@@ -139,13 +141,31 @@ describe('library', () => {
     expect(await getBindings()).toEqual({});
   });
 
-  it('ignores an offset meant for a danmaku the page no longer uses', async () => {
-    const first = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+  it('ignores an offset meant for a binding the page no longer has', async () => {
+    await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const old = await bid(A);
     const second = await addDanmaku({ fileName: 'b.xml' }, comments, { urlKey: A, title: 'A' });
-    await setPageOffset(A, first, 2); // A write that was queued before the page switched danmaku.
+    await setPageOffset(A, old, 2); // A write that was queued before the page switched danmaku.
     expect((await getBindings())[A]).toMatchObject({ danmakuId: second, offset: 0 });
-    await setPageOffset(A, second, 2);
+    await setPageOffset(A, await bid(A), 2);
     expect((await getBindings())[A]).toMatchObject({ danmakuId: second, offset: 2 });
+  });
+
+  it('ignores an offset meant for a binding that was removed and made again for the same danmaku', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const old = await bid(A);
+    await unbindPage(A);
+    await bindPage(A, id, 'A');
+    expect(await bid(A)).not.toBe(old);
+    await setPageOffset(A, old, 2);
+    expect((await getBindings())[A]).toMatchObject({ danmakuId: id, offset: 0 });
+  });
+
+  it('keeps the binding id when binding the danmaku a page already uses', async () => {
+    const id = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const before = await bid(A);
+    await bindPage(A, id, 'A');
+    expect(await bid(A)).toBe(before);
   });
 
   it('keeps every row when adds run concurrently', async () => {
@@ -176,6 +196,7 @@ describe('library', () => {
 
   it('does not let an offset write straddle a rebind', async () => {
     const first = await addDanmaku({ fileName: 'a.xml' }, comments, { urlKey: A, title: 'A' });
+    const firstBinding = await bid(A);
     const second = await addDanmaku({ fileName: 'b.xml' }, comments);
     // Hold the offset write right after it has read the bindings.
     const get = fakeBrowser.storage.local.get.bind(fakeBrowser.storage.local);
@@ -191,7 +212,7 @@ describe('library', () => {
       return result;
     });
     const flush = () => new Promise((r) => setTimeout(r, 0));
-    const offsetting = setPageOffset(A, first, 4);
+    const offsetting = setPageOffset(A, firstBinding, 4);
     await flush();
     const rebinding = bindPage(A, second, 'A');
     await flush();

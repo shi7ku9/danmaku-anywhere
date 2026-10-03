@@ -77,7 +77,8 @@ export class Controller {
     if (!bindings) return;
     const before = (bindings.oldValue as Bindings | undefined)?.[this.key];
     const after = (bindings.newValue as Bindings | undefined)?.[this.key];
-    if (before?.danmakuId !== after?.danmakuId) {
+    // A different binding, even of the same danmaku, reloads: it carries its own id and offset.
+    if (before?.id !== after?.id || before?.danmakuId !== after?.danmakuId) {
       await this.reload();
     } else if (this.entry && after && after.offset !== before?.offset) {
       this.entry.offset = after.offset;
@@ -175,7 +176,13 @@ export class Controller {
       urlKey: this.key,
       title: this.deps.getTitle(),
       entry: this.entry
-        ? { id: this.entry.id, name: this.entry.name, count: this.entry.comments.length, offset: this.entry.offset }
+        ? {
+            id: this.entry.id,
+            bindingId: this.entry.bindingId,
+            name: this.entry.name,
+            count: this.entry.comments.length,
+            offset: this.entry.offset,
+          }
         : null,
       enabled: this.enabled,
       mode: target ? 'video' : 'loop',

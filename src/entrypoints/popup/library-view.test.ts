@@ -3,9 +3,9 @@ import type { Bindings } from '../../core/types';
 import { deleteLabel, pagesUsing, usedByLabel } from './library-view';
 
 const bindings: Bindings = {
-  'https://a.com/1': { danmakuId: 'x', offset: 0, title: 'One' },
-  'https://b.com/2': { danmakuId: 'y', offset: 0, title: 'Two' },
-  'https://c.com/3': { danmakuId: 'x', offset: 2, title: 'Three' },
+  'https://a.com/1': { id: 'b1', danmakuId: 'x', offset: 0, title: 'One' },
+  'https://b.com/2': { id: 'b2', danmakuId: 'y', offset: 0, title: 'Two' },
+  'https://c.com/3': { id: 'b3', danmakuId: 'x', offset: 2, title: 'Three' },
 };
 
 describe('pagesUsing', () => {
